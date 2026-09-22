@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { type Tile, TileType } from "../../game_types";
 
-const TILE_RADIUS = 2;
+export const TILE_RADIUS = 2;
 const TILE_HEIGHT = TILE_RADIUS / 10;
 const TILE_BEVEL_THINKNESS = TILE_RADIUS / 20;
 const TILE_GEOMETRY = new THREE.ExtrudeGeometry(tileShape(TILE_RADIUS), {
@@ -27,18 +27,18 @@ const TILE_MATERIALS = new Map<TileType, THREE.Material>(
 
 export class TileView {
   root: THREE.Group;
-  constructor(scene: THREE.Scene, entity: Tile) {
+  constructor(parent: THREE.Object3D, entity: Tile) {
     this.root = new THREE.Group();
 
     const material = TILE_MATERIALS.get(entity.type)!;
     const mesh = new THREE.Mesh(TILE_GEOMETRY, material);
     this.root.add(mesh);
 
-    scene.add(this.root);
+    parent.add(this.root);
   }
 
-  dispose(scene: THREE.Scene) {
-    scene.remove(this.root);
+  dispose(parent: THREE.Object3D) {
+    parent.remove(this.root);
   }
 }
 

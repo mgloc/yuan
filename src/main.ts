@@ -1,29 +1,27 @@
 import { TileType, type Tile } from "./game_types.ts";
 import { Renderer } from "./rendering/renderer.ts";
-import { TileView } from "./rendering/views/tile_view.ts";
+import { TileGridView } from "./rendering/views/tile_grid_view.ts";
 import { Timer } from "./core/timer.ts";
 
 const width = window.innerWidth,
   height = window.innerHeight;
 
-// Rendering
+const renderer = new Renderer(width, height, document.body);
 
-const renderer = new Renderer(width, height, document.body)
+const tile = (type: TileType): Tile => ({ type });
 
-const tile: Tile = {
-  type: TileType.RiceField
-}
-const tile_view = new TileView(renderer.scene, tile);
-const tile_view_2 = new TileView(renderer.scene, tile);
+const test_grid: (Tile | null)[][] = [
+  [null, tile(TileType.Mountain), null],
+  [tile(TileType.Mine), tile(TileType.Sea), tile(TileType.Mountain)],
+  [tile(TileType.Sea), tile(TileType.RiceField), tile(TileType.Forest)],
+];
 
-let timer = new Timer();
+new TileGridView(renderer.scene, test_grid);
+
+const timer = new Timer();
 function loop() {
   requestAnimationFrame(loop);
-  let dt = timer.tick();
-
-  tile_view.root.rotateX(dt);
-  tile_view.root.rotateY(dt);
-
+  timer.tick();
   renderer.render();
 }
 loop();
