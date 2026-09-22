@@ -1,31 +1,29 @@
-import * as THREE from "three";
+import { TileType, type Tile } from "./game_types.ts";
+import { Renderer } from "./rendering/renderer.ts";
+import { TileView } from "./rendering/views/tile_view.ts";
+import { Timer } from "./core/timer.ts";
 
 const width = window.innerWidth,
   height = window.innerHeight;
 
-// init
+// Rendering
 
-const camera = new THREE.PerspectiveCamera(70, width / height, 0.01, 10);
-camera.position.z = 1;
+const renderer = new Renderer(width, height, document.body)
 
-const scene = new THREE.Scene();
-
-const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
-const material = new THREE.MeshNormalMaterial();
-
-const mesh = new THREE.Mesh(geometry, material);
-scene.add(mesh);
-
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(width, height);
-renderer.setAnimationLoop(animate);
-document.body.appendChild(renderer.domElement);
-
-// animation
-
-function animate(time) {
-  mesh.rotation.x = time / 2000;
-  mesh.rotation.y = time / 1000;
-
-  renderer.render(scene, camera);
+const tile: Tile = {
+  type: TileType.RiceField
 }
+const tile_view = new TileView(renderer.scene, tile);
+const tile_view_2 = new TileView(renderer.scene, tile);
+
+let timer = new Timer();
+function loop() {
+  requestAnimationFrame(loop);
+  let dt = timer.tick();
+
+  tile_view.root.rotateX(dt);
+  tile_view.root.rotateY(dt);
+
+  renderer.render();
+}
+loop();
