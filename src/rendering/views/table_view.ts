@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+import { disposeObject } from "../dispose.ts";
 
 const TOP_MARGIN = 3.5;
 const TOP_THICKNESS = 1.4;
@@ -17,7 +18,7 @@ const SHADOW_TEXTURE_SIZE = 512;
 const FLOOR_SHADOW_SCALE = 1.9;
 const FLOOR_SHADOW_OPACITY = 0.7;
 const FLOOR_SHADOW_TEXTURE = 256;
-const WOOD_TEXTURE_SIZE = 1024;
+const WOOD_TEXTURE_SIZE = 512;
 const WOOD_TILE_UNITS = 16;
 
 export class TableView {
@@ -75,7 +76,7 @@ export class TableView {
 
   dispose(parent: THREE.Object3D) {
     parent.remove(this.root);
-    this.root.traverse((object) => (object as THREE.Mesh).geometry?.dispose());
+    disposeObject(this.root);
     this.materials.forEach((material) => material.dispose());
     this.textures.forEach((texture) => texture.dispose());
   }

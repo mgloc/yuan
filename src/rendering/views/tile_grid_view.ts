@@ -5,6 +5,7 @@ import type { Highlight } from "../highlight.ts";
 import type { PieceFactory } from "../pieces/piece_factory.ts";
 import { ProvinceView } from "./province_view.ts";
 import { TILE_RADIUS, TileView, WATER_SURFACE_Z, tileTopZ } from "./tile_view.ts";
+import { disposeObject } from "../dispose.ts";
 import { WaterView } from "./water_view.ts";
 
 const SQRT3 = Math.sqrt(3);
@@ -72,11 +73,12 @@ export class TileGridView {
   }
 
   dispose(parent: THREE.Object3D) {
+    this.water?.dispose(this.root);
+    this.water = null;
     this.views.forEach((view) => view.dispose(this.root));
     this.views.clear();
     this.provinceViews.clear();
-    this.water?.dispose(this.root);
-    this.water = null;
+    disposeObject(this.root);
     parent.remove(this.root);
   }
 }

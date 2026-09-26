@@ -89,29 +89,36 @@ export class Environment {
 }
 
 function blurred(source: THREE.DataTexture): THREE.DataTexture {
-  const { width: sourceWidth, height: sourceHeight } = source.image;
+  const { width, height } = source.image;
   const input = source.image.data as Float32Array;
-  const channels = input.length / (sourceWidth * sourceHeight);
-  const width = sourceWidth;
-  const height = sourceHeight;
+  const channels = input.length / (width * height);
   const radius = Math.max(1, Math.round(width / BLUR_REFERENCE_WIDTH));
 
-  let data = new Float32Array(width * height * 4);
+  let front = new Float32Array(width * height * 4);
+  let back = new Float32Array(width * height * 4);
   for (let i = 0; i < width * height; i++) {
     for (let c = 0; c < 4; c++) {
-      data[i * 4 + c] = c < channels ? input[i * channels + c] : 1;
+      front[i * 4 + c] = c < channels ? input[i * channels + c] : 1;
     }
   }
-
+  const run = (blur: (from: Float32Array, to: Float32Array) => void) => {
+    blur(front, back);
+    [front, back] = [back, front];
+  };
   for (let pass = 0; pass < BLUR_PASSES; pass++) {
-    data = boxBlur(data, width, height, radius, true);
-    data = boxBlur(data, width, height, radius, false);
+    run((from, to) => boxBlur(from, to, width, height, radius, true));
+    run((from, to) => boxBlur(from, to, width, height, radius, false));
   }
   for (let pass = 0; pass < BLUR_PASSES; pass++) {
-    data = nadirBlur(data, width, height, radius, source.flipY);
+    run((from, to) => nadirBlur(from, to, width, height, radius, source.flipY));
   }
 
-  const texture = new THREE.DataTexture(data, width, height, THREE.RGBAFormat, THREE.FloatType);
+  const half = new Uint16Array(front.length);
+  for (let i = 0; i < front.length; i++) {
+    half[i] = THREE.DataUtils.toHalfFloat(front[i]);
+  }
+
+  const texture = new THREE.DataTexture(half, width, height, THREE.RGBAFormat, THREE.HalfFloatType);
   texture.mapping = THREE.EquirectangularReflectionMapping;
   texture.colorSpace = THREE.LinearSRGBColorSpace;
   texture.magFilter = THREE.LinearFilter;
@@ -122,8 +129,8 @@ function blurred(source: THREE.DataTexture): THREE.DataTexture {
   return texture;
 }
 
-function nadirBlur(input: Float32Array<ArrayBuffer>, width: number, height: number, radius: number, flipped: boolean): Float32Array<ArrayBuffer> {
-  const output = new Float32Array(input);
+function nadirBlur(input: Float32Array, output: Float32Array, width: number, height: number, radius: number, flipped: boolean) {
+  output.set(input);
   for (let y = 0; y < height; y++) {
     const fromNadir = (((flipped ? height - 1 - y : y) + 0.5) / height) * Math.PI;
     if (fromNadir >= NADIR_BLUR_LIMIT) {
@@ -147,11 +154,9 @@ function nadirBlur(input: Float32Array<ArrayBuffer>, width: number, height: numb
       }
     }
   }
-  return output;
 }
 
-function boxBlur(input: Float32Array<ArrayBuffer>, width: number, height: number, radius: number, horizontal: boolean): Float32Array<ArrayBuffer> {
-  const output = new Float32Array(input.length);
+function boxBlur(input: Float32Array, output: Float32Array, width: number, height: number, radius: number, horizontal: boolean) {
   const span = radius * 2 + 1;
   const lines = horizontal ? height : width;
   const length = horizontal ? width : height;
@@ -169,5 +174,4 @@ function boxBlur(input: Float32Array<ArrayBuffer>, width: number, height: number
       }
     }
   }
-  return output;
 }

@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { type Coord, type Tile, TileType } from "../../game_types";
+import { disposeObject } from "../dispose.ts";
 import { HIGHLIGHT_STYLES, type Highlight, type HighlightStyle } from "../highlight.ts";
 import { createTileLabels } from "./tile_label.ts";
 import { createRelief } from "./tile_relief.ts";
@@ -116,6 +117,7 @@ export class TileView {
 
   dispose(parent: THREE.Object3D) {
     parent.remove(this.root);
+    disposeObject(this.root);
   }
 }
 

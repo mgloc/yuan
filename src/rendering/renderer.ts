@@ -3,6 +3,9 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { Environment } from "./environment.ts";
 
 const BACKGROUND_COLOR = 0xece8df;
+const MAX_PIXEL_RATIO = 2;
+const MAX_DEVICE_PIXELS = 5_000_000;
+const MSAA_MAX_PIXEL_RATIO = 1.5;
 const HEMISPHERE_INTENSITY = 0.7;
 const SUN_INTENSITY = 1.5;
 const FRAME_MARGIN = 0.03;
@@ -47,9 +50,9 @@ export class Renderer {
     this.sun.position.set(6, -4, 10);
     this.scene.add(this.sun);
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer = new THREE.WebGLRenderer({ antialias: pixelRatio(width, height) < MSAA_MAX_PIXEL_RATIO, powerPreference: "high-performance" });
+    this.renderer.setPixelRatio(pixelRatio(width, height));
     this.renderer.setSize(width, height);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.toneMapping = THREE.NeutralToneMapping;
     this.container.appendChild(this.renderer.domElement);
     this.orbit = new OrbitControls(this.camera, this.renderer.domElement);
@@ -104,6 +107,7 @@ export class Renderer {
   resize(width: number, height: number) {
     this.width = width;
     this.height = height;
+    this.renderer.setPixelRatio(pixelRatio(width, height));
     for (const camera of [this.camera, this.debugCamera]) {
       if (camera) {
         camera.aspect = width / height;
@@ -180,6 +184,7 @@ export class Renderer {
     this.orbit.dispose();
     this.debugControls?.dispose();
     this.renderer.dispose();
+    this.renderer.forceContextLoss();
     this.renderer.domElement.remove();
   }
 
@@ -188,4 +193,9 @@ export class Renderer {
     this.cameraHelper?.update();
     this.renderer.render(this.scene, this.activeCamera);
   }
+}
+
+function pixelRatio(width: number, height: number): number {
+  const budget = Math.sqrt(MAX_DEVICE_PIXELS / Math.max(1, width * height));
+  return Math.max(1, Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO, budget));
 }
