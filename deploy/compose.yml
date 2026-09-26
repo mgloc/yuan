@@ -1,0 +1,25 @@
+services:
+  yuan:
+    image: ghcr.io/mgloc/yuan:latest
+    restart: unless-stopped
+    volumes:
+      - yuan-data:/data
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    command: caddy reverse-proxy --from glock.ovh --to yuan:8787
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - yuan
+
+volumes:
+  yuan-data:
+  caddy-data:
+  caddy-config:
