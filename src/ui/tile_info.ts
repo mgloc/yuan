@@ -1,4 +1,4 @@
-import { ActionType, isLand, RESOURCE_TILE, type Board, type Coord, type Province } from "../game_types.ts";
+import { ActionType, isLand, RESOURCE_TILE, type Coord, type GameState, type Province } from "../game_types.ts";
 import { adjacentProvinces } from "../game/tile/adjacency.ts";
 import { isAdjacentToVolcano } from "../game/tile/checks.ts";
 import { provinceAt, tileAt } from "../game/tile/coords.ts";
@@ -7,7 +7,7 @@ import type { PanelContent } from "./info_panel.ts";
 
 const RAMPART_LABELS = ["None", "Fortified", "Indestructible"] as const;
 
-export function tileInfo(board: Board, coord: Coord): PanelContent | null {
+export function tileInfo(board: GameState, coord: Coord): PanelContent | null {
   const tile = tileAt(board, coord);
   if (tile === null) {
     return null;
@@ -27,7 +27,7 @@ export function tileInfo(board: Board, coord: Coord): PanelContent | null {
 
   const province = provinceAt(board, coord);
   if (province !== null) {
-    rows.push(...provinceRows(province));
+    rows.push(...provinceRows(board, province));
   }
 
   rows.push(
@@ -41,9 +41,9 @@ export function tileInfo(board: Board, coord: Coord): PanelContent | null {
   return { title: tile.name ?? tile.type, rows };
 }
 
-function provinceRows(province: Province): PanelContent["rows"] {
+function provinceRows(game: GameState, province: Province): PanelContent["rows"] {
   const rows: PanelContent["rows"] = [
-    ["Owner", province.owner === null ? "Free" : `Player ${province.owner}`],
+    ["Owner", game.players.find(({ id }) => id === province.owner)?.clan ?? "Free"],
     ["Building", province.building ?? "None"],
   ];
   if (province.doubled) {

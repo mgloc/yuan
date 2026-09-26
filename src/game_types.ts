@@ -43,6 +43,19 @@ export type ActionType = (typeof ActionType)[keyof typeof ActionType];
 
 export type ActionLevel = 1 | 2 | 3;
 
+export const ACTION_LEVELS: readonly ActionLevel[] = [1, 2, 3];
+
+export const ActionKind = {
+  Colonisation: "Colonisation",
+  Expansion: "Expansion",
+  Urbanisation: "Urbanisation",
+  Reinforcement: "Reinforcement",
+  Recruitment: "Recruitment",
+  Attack: "Attack",
+} as const;
+
+export type ActionKind = (typeof ActionKind)[keyof typeof ActionKind];
+
 export const ACTION_COST: Record<ActionLevel, number> = {
   1: 0,
   2: 4,
@@ -113,6 +126,8 @@ export interface GameState {
   tiles: Grid<Tile>;
   provinces: Grid<Province>;
   players: Player[];
+  winner: PlayerId | null;
+  finished: boolean;
 }
 
 export type Board = Pick<GameState, "tiles" | "provinces">;
