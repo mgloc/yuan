@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { Building, isLand, TileType } from "../../game_types.ts";
-import { prebuiltBoard } from "../default_map.ts";
+import { Building, Clan, isLand, TileType } from "../../game_types.ts";
+import { provinceAt } from "../tile/coords.ts";
+import { prebuiltBoard, prebuiltCapitals } from "../default_map.ts";
 import { toAxial, toCoord, DIRECTIONS } from "./hex.ts";
 import { TILE_GROUPS, tileGroupsFor } from "./tile_groups.ts";
 
@@ -43,12 +44,14 @@ describe("Territory tiles", () => {
     expect(board.provinces.flat().some((province) => province !== null && province.owner !== null)).toBe(false);
   });
 
-  it("matches Crossing the Waters (3 players): the 3-player tiles once, with three starting Cities", () => {
+  it("matches Crossing the Waters (3 players): the 3-player tiles once, with three capitals on Provinces", () => {
     const { board, cells, count } = occurrences([0, 1, 2]);
     expect(cells).toHaveLength(12 * 7);
     tileGroupsFor(3).forEach((group) => expect(count(group.id), group.id).toBe(1));
     ["B", "H", "J"].forEach((id) => expect(count(id), id).toBe(0));
-    const cities = board.provinces.flat().filter((province) => province?.building === Building.City);
-    expect(cities.map((city) => city!.owner).sort()).toEqual([0, 1, 2]);
+    const capitals = prebuiltCapitals(3)!;
+    expect(capitals.map(({ clan }) => clan)).toEqual([Clan.Mu, Clan.Xiangi, Clan.Weyu]);
+    capitals.forEach(({ coord }) => expect(provinceAt(board, coord)).not.toBeNull());
+    expect(board.provinces.flat().some((province) => province?.building === Building.City)).toBe(false);
   });
 });

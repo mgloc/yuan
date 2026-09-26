@@ -1,5 +1,5 @@
 import "./setup_panel.css";
-import type { PlayerId } from "../game_types.ts";
+import type { Clan, PlayerId } from "../game_types.ts";
 import { DIRECTIONS } from "../game/setup/hex.ts";
 import { SetupStage } from "../game/setup/setup.ts";
 import { element } from "./dom.ts";
@@ -20,13 +20,28 @@ export interface SetupTile {
 export interface SetupSeat {
   id: PlayerId;
   name: string;
-  clan: string;
   color: string;
+}
+
+export interface SetupCapital {
+  clan: Clan;
+  color: string;
+  location: string | null;
+  owner: string | null;
+}
+
+export interface SetupBidding {
+  chao: number;
+  canBid: boolean;
+  yourBid: number | null;
+  status: string;
+  choosing: boolean;
+  rounds: string[];
 }
 
 export interface SetupPanelData {
   stage: SetupStage;
-  prebuilt: boolean;
+  prefilled: SetupStage[];
   seats: SetupSeat[];
   tiles: {
     yourTurn: boolean;
@@ -39,7 +54,8 @@ export interface SetupPanelData {
     hint: string | null;
     hands: { seat: SetupSeat; count: number; playing: boolean }[];
   } | null;
-  cities: { rows: { seat: SetupSeat; location: string | null }[]; selected: PlayerId } | null;
+  cities: { rows: SetupCapital[]; selected: Clan } | null;
+  clans: { capitals: SetupCapital[]; bidding: SetupBidding | null } | null;
   temples: { count: number; max: number } | null;
   agreement: { agreed: PlayerId[]; you: PlayerId; error: string | null } | null;
 }
@@ -47,8 +63,10 @@ export interface SetupPanelData {
 export interface SetupPanelHandlers {
   onSelectTile: (id: string) => void;
   onRotate: (delta: number) => void;
-  onSelectClan: (clan: PlayerId) => void;
-  onClearCity: (clan: PlayerId) => void;
+  onSelectClan: (clan: Clan) => void;
+  onClearCity: (clan: Clan) => void;
+  onBid: (amount: number) => void;
+  onChooseClan: (clan: Clan) => void;
   onAgree: (agreed: boolean) => void;
 }
 
@@ -56,6 +74,7 @@ const STEPS: readonly [SetupStage, string][] = [
   [SetupStage.Tiles, "Territory tiles"],
   [SetupStage.Cities, "Starting Cities"],
   [SetupStage.Temples, "Temples"],
+  [SetupStage.Clans, "Clans"],
 ];
 
 export class SetupPanel {
@@ -77,16 +96,32 @@ export class SetupPanel {
 
   update(data: SetupPanelData) {
     const current = STEPS.findIndex(([stage]) => stage === data.stage);
-    const labels = data.prebuilt ? ["Prebuilt map", "Starting Cities", "Temples pre-placed"] : STEPS.map(([, label]) => label);
+    const prefilledLabels: Partial<Record<SetupStage, string>> = {
+      [SetupStage.Tiles]: "Prebuilt map",
+      [SetupStage.Cities]: "Capitals pre-placed",
+      [SetupStage.Temples]: "Temples pre-placed",
+    };
     this.steps.replaceChildren(
-      ...labels.map((label, i) => {
-        const state = i < current || (data.prebuilt && i !== current) ? "done" : i === current ? "current" : "todo";
+      ...STEPS.map(([stage, defaultLabel], i) => {
+        const prefilled = data.prefilled.includes(stage);
+        const label = prefilled ? (prefilledLabels[stage] ?? defaultLabel) : defaultLabel;
+        const state = i < current || prefilled ? "done" : i === current ? "current" : "todo";
         const step = element("li", `setup-panel__step setup-panel__step--${state}`);
         step.append(element("span", "setup-panel__step-number", state === "done" ? "✓" : String(i + 1)), element("span", "", label));
         return step;
       }),
     );
-    this.body.replaceChildren(...(data.tiles ? this.tiles(data.tiles) : data.cities ? this.cities(data.cities) : data.temples ? this.temples(data.temples) : []));
+    this.body.replaceChildren(
+      ...(data.tiles
+        ? this.tiles(data.tiles)
+        : data.cities
+          ? this.cities(data.cities)
+          : data.temples
+            ? this.temples(data.temples)
+            : data.clans
+              ? this.clans(data.clans)
+              : []),
+    );
     this.footer.replaceChildren(...(data.agreement ? this.agreement(data.agreement, data.seats) : []));
     this.footer.hidden = data.agreement === null;
   }
@@ -143,27 +178,27 @@ export class SetupPanel {
     const intro = element("div", "setup-panel__status");
     intro.append(
       element("strong", "", "Agree on a starting City for every Clan"),
-      element("span", "setup-panel__hint", "Pick a Clan, then click a Province. Anyone can move any City."),
+      element("span", "setup-panel__hint", "Nobody knows yet which Clan they will play. Pick a Clan, then click a Province."),
     );
     const list = element("div", "setup-panel__clans");
     list.append(
-      ...cities.rows.map(({ seat, location }) => {
-        const row = element("label", `setup-clan${seat.id === cities.selected ? " setup-clan--selected" : ""}`);
-        row.style.setProperty("--seat-color", seat.color);
+      ...cities.rows.map(({ clan, color, location }) => {
+        const row = element("label", `setup-clan${clan === cities.selected ? " setup-clan--selected" : ""}`);
+        row.style.setProperty("--seat-color", color);
         const radio = element("input", "");
         radio.type = "radio";
         radio.name = "setup-clan";
-        radio.checked = seat.id === cities.selected;
-        radio.addEventListener("change", () => this.handlers.onSelectClan(seat.id));
+        radio.checked = clan === cities.selected;
+        radio.addEventListener("change", () => this.handlers.onSelectClan(clan));
         const text = element("span", "setup-clan__text");
-        text.append(element("strong", "", seat.clan), element("span", "setup-panel__hint", `${seat.name} · ${location ?? "not placed"}`));
+        text.append(element("strong", "", clan), element("span", "setup-panel__hint", location ?? "not placed"));
         row.append(radio, text);
         if (location !== null) {
           const clear = element("button", "setup-clan__clear", "✕");
           clear.title = "Remove this City";
           clear.addEventListener("click", (event) => {
             event.preventDefault();
-            this.handlers.onClearCity(seat.id);
+            this.handlers.onClearCity(clan);
           });
           row.append(clear);
         }
@@ -171,6 +206,57 @@ export class SetupPanel {
       }),
     );
     return [intro, list];
+  }
+
+  private clans(clans: NonNullable<SetupPanelData["clans"]>): HTMLElement[] {
+    const bidding = clans.bidding;
+    const intro = element("div", "setup-panel__status");
+    intro.append(
+      element("strong", "", bidding?.choosing ? "You won the bid: choose your capital" : "Bid for a capital, and with it a Clan"),
+      element("span", "setup-panel__hint", bidding?.status ?? "Drawing Clans…"),
+    );
+    const capitals = element("div", "setup-panel__clans");
+    capitals.append(
+      ...clans.capitals.map(({ clan, color, location, owner }) => {
+        const card = element("div", `setup-clan${owner === null ? "" : " setup-clan--taken"}`);
+        card.style.setProperty("--seat-color", color);
+        const text = element("span", "setup-clan__text");
+        text.append(element("strong", "", clan), element("span", "setup-panel__hint", `${location ?? "?"} · ${owner ?? "available"}`));
+        card.append(text);
+        if (bidding?.choosing && owner === null) {
+          const take = element("button", "player-button", "Take");
+          take.addEventListener("click", () => this.handlers.onChooseClan(clan));
+          card.append(take);
+        }
+        return card;
+      }),
+    );
+    const column = element("div", "setup-panel__column");
+    column.append(intro);
+    if (bidding !== null) {
+      const form = element("form", "setup-bid");
+      const input = element("input", "screen__input setup-bid__input");
+      input.type = "number";
+      input.min = "0";
+      input.max = String(bidding.chao);
+      input.step = "1";
+      input.value = String(bidding.yourBid ?? 0);
+      input.disabled = !bidding.canBid;
+      const submit = element("button", "player-button", bidding.yourBid === null ? "Place bid" : "Bid placed");
+      submit.disabled = !bidding.canBid;
+      form.append(element("span", "", `Your Chão: ${bidding.chao}`), input, submit);
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        this.handlers.onBid(Number(input.value));
+      });
+      column.append(form);
+      if (bidding.rounds.length > 0) {
+        const rounds = element("ol", "setup-panel__rounds");
+        rounds.append(...bidding.rounds.map((text) => element("li", "", text)));
+        column.append(rounds);
+      }
+    }
+    return [column, capitals];
   }
 
   private temples(temples: NonNullable<SetupPanelData["temples"]>): HTMLElement[] {

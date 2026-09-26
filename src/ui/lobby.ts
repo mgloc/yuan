@@ -8,7 +8,6 @@ const MAP_CHOICES: readonly { mode: MapMode; title: string; hint: string }[] = [
 
 export interface LobbySeat {
   name: string;
-  clan: string;
   color: string;
   host: boolean;
   you: boolean;
@@ -23,11 +22,15 @@ export interface LobbyData {
   isHost: boolean;
   debug: boolean;
   clanPowers: boolean;
+  bidding: boolean;
   map: MapMode;
+  clans: { clan: string; color: string; selected: boolean }[];
 }
 
 export interface LobbyHandlers {
   onClanPowers: (enabled: boolean) => void;
+  onBidding: (enabled: boolean) => void;
+  onToggleClan: (clan: string) => void;
   onMap: (mode: MapMode) => void;
   onLaunch: () => void;
   onAddPlayer: () => void;
@@ -42,6 +45,11 @@ export class Lobby {
   private players: HTMLElement;
   private clanPowers: HTMLInputElement;
   private clanLabel: HTMLElement;
+  private bidding: HTMLInputElement;
+  private biddingLabel: HTMLElement;
+  private clanChips: HTMLElement;
+  private clanHint: HTMLElement;
+  private handlers: LobbyHandlers;
   private maps: { mode: MapMode; input: HTMLInputElement; label: HTMLElement }[];
   private addPlayer: HTMLButtonElement;
   private launch: HTMLButtonElement;
@@ -78,6 +86,19 @@ export class Lobby {
     const clanText = element("span", "");
     clanText.append(element("strong", "", "Clan rules"), element("span", "screen__hint", "Starting Chão modifiers and clan powers"));
     this.clanLabel.append(this.clanPowers, clanText);
+    this.handlers = handlers;
+    this.clanChips = element("div", "lobby__clans");
+    this.clanHint = element("p", "screen__hint");
+    this.bidding = element("input", "");
+    this.bidding.type = "checkbox";
+    this.bidding.addEventListener("change", () => handlers.onBidding(this.bidding.checked));
+    this.biddingLabel = element("label", "screen__option");
+    const biddingText = element("span", "");
+    biddingText.append(
+      element("strong", "", "Bidding"),
+      element("span", "screen__hint", "Bid Chão to pick your capital, and so your Clan. Without it, Clans are drawn at random."),
+    );
+    this.biddingLabel.append(this.bidding, biddingText);
     this.maps = MAP_CHOICES.map(({ mode, title, hint }) => {
       const input = element("input", "");
       input.type = "radio";
@@ -90,7 +111,14 @@ export class Lobby {
       return { mode, input, label };
     });
     const optionsSection = element("section", "screen__section");
-    optionsSection.append(element("h2", "screen__heading", "Options"), this.clanLabel, element("h2", "screen__heading", "Map"), ...this.maps.map(({ label }) => label));
+    optionsSection.append(
+      element("h2", "screen__heading", "Options"),
+      this.clanLabel,
+      this.biddingLabel,
+      element("h2", "screen__heading", "Clans in play"),
+      this.clanChips,
+      this.clanHint,
+      element("h2", "screen__heading", "Map"), ...this.maps.map(({ label }) => label));
 
     this.launch = element("button", "player-button", "Launch game");
     this.launch.addEventListener("click", handlers.onLaunch);
@@ -119,7 +147,7 @@ export class Lobby {
       ...data.seats.map((seat) => {
         const row = element("li", "lobby__player");
         row.style.setProperty("--seat-color", seat.color);
-        row.append(element("span", "lobby__name", seat.name), element("span", "lobby__clan", seat.clan));
+        row.append(element("span", "lobby__name", seat.name));
         if (seat.host) {
           row.append(element("span", "lobby__badge", "Host"));
         }
@@ -143,11 +171,34 @@ export class Lobby {
       input.disabled = !data.isHost;
       label.classList.toggle("screen__option--disabled", !data.isHost);
     }
+    this.bidding.checked = data.bidding;
+    this.bidding.disabled = !data.isHost;
+    this.biddingLabel.classList.toggle("screen__option--disabled", !data.isHost);
     this.clanPowers.checked = data.clanPowers;
     this.clanPowers.disabled = !data.isHost;
     this.clanLabel.classList.toggle("screen__option--disabled", !data.isHost);
 
-    const enough = data.seats.length >= data.minPlayers;
+    const picked = data.clans.filter(({ selected }) => selected).length;
+    const players = data.seats.length;
+    this.clanChips.replaceChildren(
+      ...data.clans.map(({ clan, color, selected }) => {
+        const chip = element("button", `lobby__chip${selected ? " lobby__chip--selected" : ""}`, clan);
+        chip.style.setProperty("--seat-color", color);
+        chip.disabled = !data.isHost;
+        chip.setAttribute("aria-pressed", String(selected));
+        chip.addEventListener("click", () => this.handlers.onToggleClan(clan));
+        return chip;
+      }),
+    );
+    const clansReady = picked === 0 || picked === players;
+    this.clanHint.textContent =
+      picked === 0
+        ? `None picked: the first ${players} Clans are used.`
+        : picked === players
+          ? "One Clan per player, ready."
+          : `Pick ${players} Clans, one per player (${picked} picked).`;
+    this.clanHint.classList.toggle("screen__error", !clansReady);
+    const enough = data.seats.length >= data.minPlayers && clansReady;
     this.exit.textContent = data.isHost ? "Delete lobby" : "Leave lobby";
     this.exit.classList.toggle("screen__link--danger", data.isHost);
     this.launch.hidden = !data.isHost;

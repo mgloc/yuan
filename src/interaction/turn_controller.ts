@@ -56,7 +56,7 @@ export class TurnController {
       hint: `${templeTarget(game.turn)} Temples to win${VOLCANO_ERUPTION_TURNS.has(game.turn) ? " · Eruption this turn" : ""}`,
       seats: view.seats.map((seat) => ({
         label: seat.name,
-        clan: seat.clan,
+        clan: seat.clan ?? "",
         color: this.colorOf(seat.id),
         submitted: seat.submitted,
         you: seat.id === view.you,

@@ -1,13 +1,14 @@
 import * as THREE from "three";
-import { isLand, type Coord, type PlayerId } from "./game_types.ts";
-import { MAX_TEMPLES, placementError, SetupStage, setupBoard, tileCells, type SetupState } from "./game/setup/setup.ts";
+import { Building, Clan, isLand, type Coord, type Grid, type PlayerId, type Province } from "./game_types.ts";
+import { MAX_TEMPLES, placementError, SetupStage, tileCells, type SetupState } from "./game/setup/setup.ts";
+import { freeProvince } from "./game/board_layout.ts";
 import { tileGroup, type TileGroupId } from "./game/setup/tile_groups.ts";
 import { coordKey } from "./game/tile/coords.ts";
 import { DebugController } from "./interaction/debug_controller.ts";
 import { Observable } from "./interaction/observable.ts";
 import type { GameClient } from "./net/game_client.ts";
 import type { PlayerView, SetupView } from "./protocol.ts";
-import { CLAN_COLORS, clanCssColor } from "./rendering/clan_colors.ts";
+import { CLAN_COLORS, clanCssColor, seatCssColor } from "./rendering/clan_colors.ts";
 import { Highlight } from "./rendering/highlight.ts";
 import { TILE_RADIUS } from "./rendering/hex_layout.ts";
 import { TilePicker } from "./rendering/picking.ts";
@@ -18,7 +19,7 @@ import { TileGridView } from "./rendering/views/tile_grid_view.ts";
 import { TILE_BOTTOM_Z, TILE_COLORS } from "./rendering/views/tile_view.ts";
 import { Stage } from "./stage.ts";
 import { element } from "./ui/dom.ts";
-import { SetupPanel, type SetupPanelData, type SetupSeat, type SetupTile } from "./ui/setup_panel.ts";
+import { SetupPanel, type SetupBidding, type SetupCapital, type SetupPanelData, type SetupSeat, type SetupTile } from "./ui/setup_panel.ts";
 import { TurnBar } from "./ui/turn_bar.ts";
 
 const HEX_AREA = 1.5 * Math.sqrt(3) * TILE_RADIUS * TILE_RADIUS;
@@ -43,14 +44,14 @@ export class SetupScreen {
   private selectedTile: TileGroupId | null = null;
   private rotation = 0;
   private hovered: Coord | null = null;
-  private selectedClan: PlayerId;
+  private selectedClan: Clan;
   private onExit: () => void;
 
   constructor(container: HTMLElement, client: GameClient, initial: PlayerView, onExit: () => void) {
     this.view = new Observable(initial);
     this.client = client;
     this.onExit = onExit;
-    this.selectedClan = initial.you;
+    this.selectedClan = initial.setup?.clans[0] ?? Clan.Suhey;
     this.stage = new Stage(container);
     this.stage.onFrame((dt) => this.grid?.update(dt));
 
@@ -69,6 +70,8 @@ export class SetupScreen {
       },
       onClearCity: (clan) => client.setCity(clan, null),
       onAgree: (agreed) => client.agree(agreed),
+      onBid: (amount) => client.bid(amount),
+      onChooseClan: (clan) => client.chooseClan(clan),
     });
     this.stage.setHud(this.bar.root, this.panel.root);
 
@@ -85,7 +88,7 @@ export class SetupScreen {
     window.addEventListener("keydown", this.onKeyDown);
 
     if (initial.debug && client.isHost) {
-      const cssColor = (player: PlayerId) => clanCssColor(this.seat(player).clan);
+      const cssColor = (player: PlayerId) => seatCssColor(this.seat(player).clan);
       const debug = new DebugController(this.side, this.view, initial.self, cssColor, {
         actAs: (player) => client.actAs(player),
         restart: () => client.restart(),
@@ -154,8 +157,7 @@ export class SetupScreen {
       this.stage.setFootprint(this.grid.tileCenters());
       this.grid.root.add(this.ghost.root);
     }
-    const clanColor = (player: PlayerId) => CLAN_COLORS[this.seat(player).clan];
-    this.grid!.updateProvinces(setup.stage === SetupStage.Tiles ? [] : setupBoard(setup as SetupState).provinces, clanColor);
+    this.grid!.updateProvinces(setup.stage === SetupStage.Tiles ? [] : capitalBoard(setup), (capital) => CLAN_COLORS[setup.clans[capital]]);
   }
 
   private syncSelection() {
@@ -163,8 +165,8 @@ export class SetupScreen {
     if (this.selectedTile === null || !hand.includes(this.selectedTile)) {
       this.selectedTile = hand[0] ?? null;
     }
-    if (!this.view.get().seats.some(({ id }) => id === this.selectedClan)) {
-      this.selectedClan = this.view.get().you;
+    if (!this.setup.clans.includes(this.selectedClan)) {
+      this.selectedClan = this.setup.clans[0];
     }
   }
 
@@ -188,7 +190,7 @@ export class SetupScreen {
   }
 
   private renderHighlights() {
-    const city = this.setup.stage === SetupStage.Cities ? this.setup.cities[this.selectedClan] : null;
+    const city = this.setup.stage === SetupStage.Cities ? this.setup.cities[this.setup.clans.indexOf(this.selectedClan)] : null;
     this.grid?.setHighlights(new Map(city ? [[coordKey(city), Highlight.Selected]] : []));
   }
 
@@ -216,7 +218,7 @@ export class SetupScreen {
       return;
     }
     if (setup.stage === SetupStage.Cities) {
-      const current = setup.cities[this.selectedClan];
+      const current = setup.cities[setup.clans.indexOf(this.selectedClan)];
       this.client.setCity(this.selectedClan, current !== null && coordKey(current) === coordKey(coord) ? null : coord);
     } else if (setup.stage === SetupStage.Temples) {
       this.client.toggleTemple(coord);
@@ -226,17 +228,24 @@ export class SetupScreen {
   private panelData(): SetupPanelData {
     const view = this.view.get();
     const setup = this.setup;
-    const seats: SetupSeat[] = view.seats
-      .filter(({ left }) => !left)
-      .map(({ id, name, clan }) => ({ id, name, clan, color: clanCssColor(clan) }));
-    const allSeats: SetupSeat[] = view.seats.map(({ id, name, clan }) => ({ id, name, clan, color: clanCssColor(clan) }));
+    const seats: SetupSeat[] = view.seats.filter(({ left }) => !left).map(({ id, name, clan }) => ({ id, name, color: seatCssColor(clan) }));
+    const allSeats: SetupSeat[] = view.seats.map(({ id, name, clan }) => ({ id, name, color: seatCssColor(clan) }));
     const placeName = (coord: Coord | null) => (coord === null ? null : setup.tiles[coord.row]?.[coord.col]?.name ?? "somewhere");
+    const capitals: SetupCapital[] = setup.clans.map((clan, i) => ({
+      clan,
+      color: clanCssColor(clan),
+      location: placeName(setup.cities[i]),
+      owner: setup.owners[i] === null ? null : this.seat(setup.owners[i]!).name,
+    }));
     const turnSeat = setup.turn === null ? null : this.seat(setup.turn);
     const anchor = this.anchor();
     const hint = anchor === null ? null : placementError(setup as SetupState, anchor, this.rotation);
     return {
       stage: setup.stage,
-      prebuilt: setup.templesLocked,
+      prefilled: [
+        ...(setup.templesLocked ? [SetupStage.Tiles, SetupStage.Temples] : []),
+        ...(setup.citiesLocked ? [SetupStage.Cities] : []),
+      ],
       seats,
       tiles:
         setup.stage !== SetupStage.Tiles
@@ -255,10 +264,11 @@ export class SetupScreen {
       cities:
         setup.stage !== SetupStage.Cities
           ? null
-          : { rows: allSeats.map((seat) => ({ seat, location: placeName(setup.cities[seat.id]) })), selected: this.selectedClan },
+          : { rows: capitals, selected: this.selectedClan },
+      clans: setup.stage !== SetupStage.Clans ? null : { capitals, bidding: this.biddingData() },
       temples: setup.stage !== SetupStage.Temples ? null : { count: setup.temples.length, max: MAX_TEMPLES },
       agreement:
-        setup.stage === SetupStage.Tiles
+        setup.stage === SetupStage.Tiles || setup.stage === SetupStage.Clans
           ? null
           : {
               agreed: setup.agreed,
@@ -268,17 +278,58 @@ export class SetupScreen {
     };
   }
 
+  private biddingData(): SetupBidding | null {
+    const view = this.view.get();
+    const bidding = this.setup.bidding;
+    if (bidding === null) {
+      return null;
+    }
+    const name = (player: PlayerId) => this.seat(player).name;
+    const names = (players: PlayerId[]) => players.map(name).join(", ");
+    const waiting = bidding.contenders.filter((id) => !bidding.submitted.includes(id));
+    const status =
+      bidding.chooser !== null
+        ? bidding.chooser === view.you
+          ? "Pick the capital you want to play."
+          : `${name(bidding.chooser)} won the bid and is choosing a capital.`
+        : bidding.tieBreak
+          ? `Tie between ${names(bidding.contenders)}: they bid again${waiting.length > 0 ? `, waiting for ${names(waiting)}` : ""}.`
+          : `Hidden bids, revealed together. Waiting for ${names(waiting)}.`;
+    const rounds = bidding.history.map((round, i) => {
+      const bids = round.bids.map(({ player, amount }) => `${name(player)} ${amount}₵`).join(", ");
+      const result =
+        round.winner === null
+          ? "tie, re-bid"
+          : `${name(round.winner)} wins${round.random ? " (drawn at random)" : ""}${round.clan ? ` and takes ${round.clan}` : ""}`;
+      return `Round ${i + 1}: ${bids} → ${result}`;
+    });
+    return {
+      chao: bidding.chao[view.you],
+      canBid: bidding.chooser === null && bidding.contenders.includes(view.you) && bidding.yourBid === null,
+      yourBid: bidding.yourBid,
+      status,
+      choosing: bidding.chooser === view.you,
+      rounds,
+    };
+  }
+
   private barData() {
     const view = this.view.get();
     const setup = this.setup;
     const hints: Record<SetupStage, string> = {
-      [SetupStage.Tiles]: "Step 1 of 3 · Territory tiles",
-      [SetupStage.Cities]: "Step 2 of 3 · Starting Cities",
-      [SetupStage.Temples]: "Step 3 of 3 · Temples",
+      [SetupStage.Tiles]: "Step 1 of 4 · Territory tiles",
+      [SetupStage.Cities]: "Step 2 of 4 · Starting Cities",
+      [SetupStage.Temples]: "Step 3 of 4 · Temples",
+      [SetupStage.Clans]: "Step 4 of 4 · Bidding for Clans",
     };
     const waiting = view.seats.filter(({ id, left }) => !left && !setup.agreed.includes(id));
+    const bidding = setup.bidding;
     const status =
-      setup.stage === SetupStage.Tiles
+      setup.stage === SetupStage.Clans
+        ? bidding?.chooser != null
+          ? `${this.seat(bidding.chooser).name} is choosing a capital`
+          : "Bidding"
+        : setup.stage === SetupStage.Tiles
         ? this.yourTurn
           ? "Your turn"
           : `${setup.turn === null ? "Someone" : this.seat(setup.turn).name} is placing a tile`
@@ -287,12 +338,15 @@ export class SetupScreen {
           : `Waiting for ${waiting.map(({ name }) => name).join(", ")}`;
     return {
       title: "Map setup",
-      hint: setup.templesLocked ? "Prebuilt map · Starting Cities" : hints[setup.stage],
+      hint: setup.templesLocked ? `Prebuilt map · ${setup.stage === SetupStage.Clans ? "Bidding for Clans" : "Starting Cities"}` : hints[setup.stage],
       seats: view.seats.map((seat) => ({
         label: seat.name,
-        clan: seat.clan,
-        color: clanCssColor(seat.clan),
-        submitted: setup.stage !== SetupStage.Tiles && setup.agreed.includes(seat.id),
+        clan: seat.clan ?? "No Clan yet",
+        color: seatCssColor(seat.clan),
+        submitted:
+          setup.stage === SetupStage.Clans
+            ? seat.clan !== null || (bidding?.submitted.includes(seat.id) ?? false)
+            : setup.stage !== SetupStage.Tiles && setup.agreed.includes(seat.id),
         you: seat.id === view.you,
         left: seat.left,
       })),
@@ -322,4 +376,19 @@ function tileData(id: TileGroupId): SetupTile {
 function expectedArea(tiles: number): THREE.Box3 {
   const radius = Math.sqrt((tiles * 7 * HEX_AREA) / Math.PI) * AREA_MARGIN;
   return new THREE.Box3(new THREE.Vector3(-radius, -radius, TILE_BOTTOM_Z), new THREE.Vector3(radius, radius, BOARD_HEIGHT));
+}
+
+function capitalBoard(setup: SetupView): Grid<Province> {
+  const temples = new Set(setup.temples.map(coordKey));
+  const provinces = setup.tiles.map((line, row) =>
+    line.map((tile, col) => (tile !== null && isLand(tile) ? freeProvince({ temple: temples.has(coordKey({ col, row })) }) : null)),
+  );
+  setup.cities.forEach((city, capital) => {
+    const province = city === null ? null : provinces[city.row]?.[city.col];
+    if (province) {
+      province.owner = capital;
+      province.building = Building.City;
+    }
+  });
+  return provinces;
 }

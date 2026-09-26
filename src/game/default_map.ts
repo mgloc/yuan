@@ -1,4 +1,5 @@
-import { Building, TileType, type Board, type Coord, type PlayerId } from "../game_types.ts";
+import { Clan, TileType, type Board, type Coord, type PlayerId } from "../game_types.ts";
+import { CLAN_ORDER } from "./setup/setup.ts";
 import { parseBoard } from "./board_layout.ts";
 import { allCoords, coordKey, provinceAt, tileAt } from "./tile/coords.ts";
 
@@ -27,14 +28,24 @@ export const STARTING_CITIES: readonly Coord[] = [
 
 export const MAX_PLAYERS = STARTING_CITIES.length;
 
+export interface Capital {
+  clan: Clan;
+  coord: Coord;
+}
+
 export interface PrebuiltMap {
   name: string;
   layout: readonly string[];
-  cities?: readonly Coord[];
+  capitals?: readonly Capital[];
   temples?: readonly Coord[];
+  bidding?: boolean;
 }
 
-const DEFAULT_MAP: PrebuiltMap = { name: "Default", layout: LAYOUT, cities: STARTING_CITIES };
+const DEFAULT_MAP: PrebuiltMap = {
+  name: "Default",
+  layout: LAYOUT,
+  capitals: STARTING_CITIES.map((coord, i) => ({ clan: CLAN_ORDER[i], coord })),
+};
 
 const RIVER_CONTROL: PrebuiltMap = {
   name: "River Control",
@@ -68,7 +79,12 @@ const CROSSING_THE_WATERS: PrebuiltMap = {
     "_       _       _       _       _       H:Zong  ~       ^       H:Khal  R:Liang ^       _       _",
     "_       _       _       _       _       _       F:Yang  _       _       _       _       _       _",
   ],
-  cities: [{ col: 8, row: 8 }, { col: 3, row: 7 }, { col: 10, row: 2 }],
+  capitals: [
+    { clan: Clan.Mu, coord: { col: 8, row: 8 } },
+    { clan: Clan.Xiangi, coord: { col: 3, row: 7 } },
+    { clan: Clan.Weyu, coord: { col: 10, row: 2 } },
+  ],
+  bidding: true,
 };
 
 export const PREBUILT_MAPS: Readonly<Record<number, PrebuiltMap>> = {
@@ -79,6 +95,11 @@ export const PREBUILT_MAPS: Readonly<Record<number, PrebuiltMap>> = {
 
 export function prebuiltMap(players: number): PrebuiltMap {
   return PREBUILT_MAPS[players] ?? DEFAULT_MAP;
+}
+
+export function prebuiltCapitals(players: number): readonly Capital[] | null {
+  const capitals = prebuiltMap(players).capitals;
+  return capitals !== undefined && capitals.length >= players ? capitals.slice(0, players) : null;
 }
 
 export function prebuiltBoard(players: PlayerId[]): Board {
@@ -93,13 +114,5 @@ export function prebuiltBoard(players: PlayerId[]): Board {
     }
     province.temple = temples === null ? tileAt(board, coord)?.type === TileType.Hills : temples.has(coordKey(coord));
   }
-  players.forEach((player, i) => {
-    const city = map.cities?.[i];
-    const province = city === undefined ? null : provinceAt(board, city);
-    if (province !== null) {
-      province.owner = player;
-      province.building = Building.City;
-    }
-  });
   return board;
 }

@@ -10,3 +10,9 @@ export const CLAN_COLORS: Record<Clan, number> = {
 export function clanCssColor(clan: Clan): string {
   return `#${CLAN_COLORS[clan].toString(16).padStart(6, "0")}`;
 }
+
+export const UNASSIGNED_CSS_COLOR = "#8a939c";
+
+export function seatCssColor(clan: Clan | null): string {
+  return clan === null ? UNASSIGNED_CSS_COLOR : clanCssColor(clan);
+}

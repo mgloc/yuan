@@ -6,10 +6,13 @@ import { createRoom, joinRoom } from "./net/api.ts";
 import { GameClient } from "./net/game_client.ts";
 import { forgetSession, loadName, loadSession, saveName, saveSession } from "./net/session.ts";
 import { MIN_PLAYERS, type PlayerView, type Session } from "./protocol.ts";
-import { clanCssColor } from "./rendering/clan_colors.ts";
+import { clanCssColor, seatCssColor } from "./rendering/clan_colors.ts";
+import { CLAN_ORDER } from "./game/setup/setup.ts";
+import type { Clan } from "./game_types.ts";
 import { Landing } from "./ui/landing.ts";
 import { Lobby } from "./ui/lobby.ts";
 import { Toast } from "./ui/toast.ts";
+import { readableOnDark } from "./ui/color.ts";
 
 const container = document.body;
 const toast = new Toast(container);
@@ -122,6 +125,12 @@ function route(current: GameClient, view: PlayerView) {
     lobby ??= new Lobby(container, {
       onClanPowers: (clanPowers) => current.setOptions({ clanPowers }),
       onMap: (map) => current.setOptions({ map }),
+      onBidding: (bidding) => current.setOptions({ bidding }),
+      onToggleClan: (clan) => {
+        const chosen = current.view.get()?.options.clans ?? [];
+        const next = chosen.includes(clan as Clan) ? chosen.filter((other) => other !== clan) : [...chosen, clan as Clan];
+        current.setOptions({ clans: next });
+      },
       onLaunch: () => current.start(),
       onAddPlayer: () => current.addPlayer(),
       onCopyLink: () => navigator.clipboard?.writeText(`${location.origin}${location.pathname}?game=${view.code}`),
@@ -131,8 +140,7 @@ function route(current: GameClient, view: PlayerView) {
       code: view.code,
       seats: view.seats.map((seat) => ({
         name: seat.name,
-        clan: seat.clan,
-        color: clanCssColor(seat.clan),
+        color: seatCssColor(seat.clan),
         host: seat.id === view.host,
         you: seat.id === view.self,
         placeholder: seat.placeholder,
@@ -143,6 +151,8 @@ function route(current: GameClient, view: PlayerView) {
       debug: view.debug,
       clanPowers: view.options.clanPowers,
       map: view.options.map,
+      bidding: view.options.bidding,
+      clans: CLAN_ORDER.map((clan) => ({ clan, color: readableOnDark(clanCssColor(clan)), selected: view.options.clans.includes(clan) })),
     });
     return;
   }

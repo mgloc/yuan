@@ -1,4 +1,4 @@
-import type { Coord, Plan, PlayerId } from "../game_types.ts";
+import type { Clan, Coord, Plan, PlayerId } from "../game_types.ts";
 import type { TileGroupId } from "../game/setup/tile_groups.ts";
 import { Observable } from "../interaction/observable.ts";
 import { RoomAction, type PlayerView, type RoomOptions, type Session } from "../protocol.ts";
@@ -39,7 +39,7 @@ export class GameClient {
     this.connect();
   }
 
-  setOptions(options: Partial<Pick<RoomOptions, "clanPowers" | "map">>) {
+  setOptions(options: Partial<Pick<RoomOptions, "clanPowers" | "map" | "bidding" | "clans">>) {
     this.send(RoomAction.Options, { options });
   }
 
@@ -47,7 +47,7 @@ export class GameClient {
     this.send(RoomAction.PlaceTile, { tile, anchor, rotation });
   }
 
-  setCity(clan: PlayerId, coord: Coord | null) {
+  setCity(clan: Clan, coord: Coord | null) {
     this.send(RoomAction.SetCity, { clan, coord });
   }
 
@@ -57,6 +57,14 @@ export class GameClient {
 
   agree(agreed: boolean) {
     this.send(RoomAction.Agree, { agreed });
+  }
+
+  bid(amount: number) {
+    this.send(RoomAction.Bid, { amount });
+  }
+
+  chooseClan(clan: Clan) {
+    this.send(RoomAction.ChooseClan, { clan });
   }
 
   start() {

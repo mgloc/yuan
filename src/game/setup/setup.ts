@@ -1,4 +1,4 @@
-import { Building, isLand, type Board, type Coord, type Grid, type PlayerId, type Tile } from "../../game_types.ts";
+import { Building, Clan, isLand, type Board, type Coord, type Grid, type PlayerId, type Tile } from "../../game_types.ts";
 import { freeProvince } from "../board_layout.ts";
 import { coordKey } from "../tile/coords.ts";
 import { ringAround } from "./hex.ts";
@@ -8,6 +8,7 @@ export const SetupStage = {
   Tiles: "tiles",
   Cities: "cities",
   Temples: "temples",
+  Clans: "clans",
 } as const;
 
 export type SetupStage = (typeof SetupStage)[keyof typeof SetupStage];
@@ -17,6 +18,23 @@ export const WORK_ROWS = 21;
 export const WORK_CENTER: Coord = { col: 10, row: 10 };
 export const MAX_TEMPLES = 18;
 export const ROTATIONS = 6;
+export const CLAN_ORDER: readonly Clan[] = [Clan.Suhey, Clan.Xiangi, Clan.Weyu, Clan.Mu];
+
+export interface BidRound {
+  bids: { player: PlayerId; amount: number }[];
+  winner: PlayerId | null;
+  clan: Clan | null;
+  random: boolean;
+}
+
+export interface BiddingState {
+  chao: number[];
+  contenders: PlayerId[];
+  bids: { [player: PlayerId]: number };
+  chooser: PlayerId | null;
+  tieBreak: boolean;
+  history: BidRound[];
+}
 
 export interface SetupState {
   stage: SetupStage;
@@ -29,27 +47,48 @@ export interface SetupState {
   cities: (Coord | null)[];
   temples: Coord[];
   agreed: PlayerId[];
+  clans: Clan[];
+  owners: (PlayerId | null)[];
+  withBidding: boolean;
+  bidding: BiddingState | null;
   templesLocked?: boolean;
+  citiesLocked?: boolean;
 }
 
-export function citySetup(board: Board, players: number): SetupState {
+export function clansInPlay(players: number, chosen: readonly Clan[] = []): Clan[] {
+  return chosen.length === players ? [...chosen] : CLAN_ORDER.slice(0, players);
+}
+
+export function citySetup(
+  board: Board,
+  capitals: readonly { clan: Clan; coord: Coord }[] | null,
+  players: number,
+  withBidding: boolean,
+  chosen: readonly Clan[] = [],
+): SetupState {
   const temples = board.provinces.flatMap((line, row) => line.flatMap((province, col) => (province?.temple ? [{ col, row }] : [])));
+  const clans = chosen.length === players ? [...chosen] : capitals === null ? clansInPlay(players) : capitals.map(({ clan }) => clan);
   return {
-    stage: SetupStage.Cities,
+    stage: capitals === null ? SetupStage.Cities : SetupStage.Clans,
     tiles: board.tiles,
     origin: null,
     hands: Array.from({ length: players }, () => []),
     turn: null,
     placed: 0,
     total: 0,
-    cities: Array.from({ length: players }, () => null),
+    cities: capitals === null ? clans.map(() => null) : capitals.map(({ coord }) => coord),
     temples,
     agreed: [],
+    clans,
+    owners: clans.map(() => null),
+    withBidding,
+    bidding: null,
     templesLocked: true,
+    citiesLocked: capitals !== null,
   };
 }
 
-export function newSetup(players: number, random: () => number): SetupState {
+export function newSetup(players: number, random: () => number, withBidding: boolean, chosen: readonly Clan[] = []): SetupState {
   const groups = shuffle(tileGroupsFor(players).map(({ id }) => id), random);
   const hands: TileGroupId[][] = Array.from({ length: players }, () => []);
   groups.forEach((id, i) => hands[i % players].push(id));
@@ -61,9 +100,13 @@ export function newSetup(players: number, random: () => number): SetupState {
     turn: 0,
     placed: 0,
     total: groups.length,
-    cities: Array.from({ length: players }, () => null),
+    cities: clansInPlay(players, chosen).map(() => null),
     temples: [],
     agreed: [],
+    clans: clansInPlay(players, chosen),
+    owners: clansInPlay(players, chosen).map(() => null),
+    withBidding,
+    bidding: null,
   };
 }
 
@@ -130,22 +173,23 @@ export function handOver(setup: SetupState, player: PlayerId, active: readonly P
   }
 }
 
-export function setCity(setup: SetupState, clan: PlayerId, coord: Coord | null): string | null {
-  if (setup.stage !== SetupStage.Cities) {
+export function setCity(setup: SetupState, clan: Clan, coord: Coord | null): string | null {
+  if (setup.stage !== SetupStage.Cities || setup.citiesLocked) {
     return "Cities are not being placed";
   }
-  if (clan < 0 || clan >= setup.cities.length) {
-    return "Unknown Clan";
+  const index = setup.clans.indexOf(clan);
+  if (index < 0) {
+    return "This Clan is not in play";
   }
   if (coord !== null) {
     if (!isProvince(setup.tiles, coord)) {
       return "A City goes on a Province";
     }
-    if (setup.cities.some((city, other) => other !== clan && city !== null && coordKey(city) === coordKey(coord))) {
+    if (setup.cities.some((city, other) => other !== index && city !== null && coordKey(city) === coordKey(coord))) {
       return "Another Clan already starts there";
     }
   }
-  setup.cities[clan] = coord;
+  setup.cities[index] = coord;
   setup.agreed = [];
   return null;
 }
@@ -173,6 +217,9 @@ export function agreementError(setup: SetupState): string | null {
   if (setup.stage === SetupStage.Tiles) {
     return "Tiles are still being placed";
   }
+  if (setup.stage === SetupStage.Clans) {
+    return "Clans are being chosen";
+  }
   if (setup.stage === SetupStage.Cities && setup.cities.some((city) => city === null)) {
     return "Every Clan needs a starting City";
   }
@@ -195,16 +242,13 @@ export function everyoneAgreed(setup: SetupState, active: readonly PlayerId[]): 
   return agreementError(setup) === null && active.every((player) => setup.agreed.includes(player));
 }
 
-export function nextStage(setup: SetupState): boolean {
+export function nextStage(setup: SetupState) {
   setup.agreed = [];
   if (setup.stage === SetupStage.Cities) {
-    if (setup.templesLocked) {
-      return true;
-    }
-    setup.stage = SetupStage.Temples;
-    return false;
+    setup.stage = setup.templesLocked ? SetupStage.Clans : SetupStage.Temples;
+  } else if (setup.stage === SetupStage.Temples) {
+    setup.stage = SetupStage.Clans;
   }
-  return setup.stage === SetupStage.Temples;
 }
 
 export function setupBoard(setup: SetupState): Board {
@@ -212,10 +256,10 @@ export function setupBoard(setup: SetupState): Board {
   const provinces = setup.tiles.map((line, row) =>
     line.map((tile, col) => (tile !== null && isLand(tile) ? freeProvince({ temple: temples.has(coordKey({ col, row })) }) : null)),
   );
-  setup.cities.forEach((city, player) => {
+  setup.cities.forEach((city, index) => {
     const province = city === null ? null : provinces[city.row]?.[city.col];
     if (province) {
-      province.owner = player;
+      province.owner = setup.owners[index] ?? null;
       province.building = Building.City;
     }
   });
@@ -272,7 +316,7 @@ function isProvince(tiles: Grid<Tile>, coord: Coord): boolean {
   return tile !== null && isLand(tile);
 }
 
-function shuffle<T>(items: T[], random: () => number): T[] {
+export function shuffle<T>(items: T[], random: () => number): T[] {
   const result = [...items];
   for (let i = result.length - 1; i > 0; i--) {
     const j = Math.floor(random() * (i + 1));

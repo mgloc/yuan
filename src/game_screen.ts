@@ -34,7 +34,7 @@ export class GameScreen {
     this.game = new Observable(gameInfo(initial, initial.match!));
     this.draftKey = draftKey(initial);
 
-    const clanOf = (player: PlayerId) => this.view.get().seats.find(({ id }) => id === player)!.clan;
+    const clanOf = (player: PlayerId) => this.view.get().seats.find(({ id }) => id === player)!.clan!;
     const clanColor = (player: PlayerId) => CLAN_COLORS[clanOf(player)];
     const cssColor = (player: PlayerId) => clanCssColor(clanOf(player));
 

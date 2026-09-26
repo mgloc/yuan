@@ -85,7 +85,7 @@ export class PlayerBoardController {
       return;
     }
     const plan = seat.submitted && view.match.plan !== null ? view.match.plan : this.draft.get();
-    const player = { id: seat.id, clan: seat.clan, chao: view.match.chao };
+    const player = { id: seat.id, clan: seat.clan!, chao: view.match.chao };
     this.board.update(
       playerBoardData(this.game.get(), player, plan, this.selection.get(), this.colorOf(seat.id), seat.submitted),
     );

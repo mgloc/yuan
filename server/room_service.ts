@@ -19,11 +19,13 @@ export class RoomService {
   private store: RoomStore;
   private notifier: Notifier;
   private now: () => number;
+  private random: () => number;
 
-  constructor(store: RoomStore, notifier: Notifier, now: () => number = Date.now) {
+  constructor(store: RoomStore, notifier: Notifier, now: () => number = Date.now, random: () => number = Math.random) {
     this.store = store;
     this.notifier = notifier;
     this.now = now;
+    this.random = random;
   }
 
   async create(name: string, debug: boolean, maxRooms: number): Promise<Session> {
@@ -73,7 +75,7 @@ export class RoomService {
   }
 
   private wrap(state: Room["state"]): Room {
-    return new Room(state, () => randomBytes(18).toString("base64url"));
+    return new Room(state, () => randomBytes(18).toString("base64url"), this.random);
   }
 }
 

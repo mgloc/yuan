@@ -7,7 +7,7 @@ export function gameInfo(view: PlayerView, match: MatchView): GameInfo {
     options: view.options,
     tiles: match.tiles,
     provinces: match.provinces,
-    players: view.seats,
+    players: view.seats.map(({ id, clan }) => ({ id, clan: clan! })),
     winner: match.winner,
     finished: match.finished,
   };

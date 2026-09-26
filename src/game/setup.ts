@@ -15,12 +15,12 @@ export function startingChao(clan: Clan, options: GameOptions): number {
   return STARTING_CHAO + (options.clanPowers ? CLAN_CHAO_MODIFIER[clan] : 0);
 }
 
-export function createGame(board: Board, clans: Clan[], options: GameOptions): GameState {
+export function createGame(board: Board, clans: Clan[], options: GameOptions, chao?: readonly number[]): GameState {
   return {
     turn: 1,
     options,
     ...board,
-    players: clans.map((clan, id) => ({ id, clan, chao: startingChao(clan, options) })),
+    players: clans.map((clan, id) => ({ id, clan, chao: chao?.[id] ?? startingChao(clan, options) })),
     winner: null,
     finished: false,
   };

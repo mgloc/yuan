@@ -12,7 +12,7 @@ let server: Server;
 let base: string;
 
 beforeAll(async () => {
-  const api = createApi({ store: new SqliteRoomStore(":memory:"), limits: { maxRooms: 50, maxStreamsPerRoom: 3, creationsPerIp: 1000 } });
+  const api = createApi({ store: new SqliteRoomStore(":memory:"), limits: { maxRooms: 50, maxStreamsPerRoom: 3, creationsPerIp: 1000 }, random: () => 0.999 });
   const serveStatic = staticFiles("/nonexistent");
   server = createServer((req, res) => api(req, res, () => serveStatic(req.url ?? "/", res)));
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -100,6 +100,15 @@ describe("authorisation", () => {
     expect((await firstView({ code, player: 0, token: "forged" })).status).toBe(403);
   });
 
+  it("rejects invalid Clan picks", async () => {
+    const { host, code } = await game();
+    const pick = (clans: unknown) => call(`/api/games/${code}/options`, { token: host.token, options: { clans } });
+    expect((await pick(["Mu", "Mu"])).status).toBe(400);
+    expect((await pick(["Mu", "Nobody"])).status).toBe(400);
+    expect((await pick("Mu")).status).toBe(400);
+    expect((await pick(["Mu", "Weyu"])).status).toBe(200);
+  });
+
   it("keeps host-only actions for the host", async () => {
     const { guest, code } = await game();
     expect((await call(`/api/games/${code}/start`, { token: guest.token })).status).toBe(403);
@@ -121,10 +130,13 @@ describe("authorisation", () => {
     const { host, guest, code } = await game(true);
     await call(`/api/games/${code}/add-player`, { token: host.token });
     await call(`/api/games/${code}/start`, { token: host.token });
-    expect((await call(`/api/games/${code}/plan`, { token: host.token, as: 2, plan: emptyPlan() })).status).toBe(200);
-    expect((await call(`/api/games/${code}/plan`, { token: host.token, as: 1, plan: emptyPlan() })).status).toBe(403);
+    expect((await call(`/api/games/${code}/bid`, { token: host.token, as: 2, amount: 1 })).status).toBe(200);
+    expect((await call(`/api/games/${code}/bid`, { token: host.token, as: 1, amount: 1 })).status).toBe(403);
     expect((await firstView(host, 1)).status).toBe(403);
-    expect((await call(`/api/games/${code}/plan`, { token: guest.token, as: 2, plan: emptyPlan() })).status).toBe(403);
+    expect((await call(`/api/games/${code}/bid`, { token: guest.token, as: 2, amount: 1 })).status).toBe(403);
+    expect((await call(`/api/games/${code}/bid`, { token: guest.token, amount: 7 })).status).toBe(422);
+    expect((await call(`/api/games/${code}/bid`, { token: guest.token, amount: "all" })).status).toBe(400);
+    expect((await call(`/api/games/${code}/choose-clan`, { token: guest.token, clan: "Nobody" })).status).toBe(400);
   });
 });
 

@@ -232,3 +232,25 @@
 .setup-agree--yes::after {
   content: " ✓";
 }
+
+.setup-clan--taken {
+  opacity: 0.6;
+}
+
+.setup-bid {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.setup-bid__input {
+  flex: 0 0 70px;
+  width: 70px;
+}
+
+.setup-panel__rounds {
+  margin: 0;
+  padding-left: 18px;
+  color: #a8b0b8;
+  font-size: 12px;
+}

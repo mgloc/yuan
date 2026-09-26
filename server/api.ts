@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { PlayerId } from "../src/game_types.ts";
+import { Clan, type PlayerId } from "../src/game_types.ts";
 import { MapMode, RoomAction, type Credentials, type ErrorResponse, type RoomOptions } from "../src/protocol.ts";
 import { clientIp, IpLimits } from "./ip_limits.ts";
 import { LocalNotifier, type Notifier } from "./notifier.ts";
@@ -25,6 +25,7 @@ export interface ApiOptions {
   notifier?: Notifier;
   limits?: Partial<ApiLimits>;
   trustProxy?: boolean;
+  random?: () => number;
 }
 
 const DEFAULT_LIMITS: ApiLimits = {
@@ -40,9 +41,9 @@ const ROOM_ACTIONS = new Set<string>(Object.values(RoomAction));
 
 type Next = () => void;
 
-export function createApi({ store, notifier = new LocalNotifier(), limits = {}, trustProxy = false }: ApiOptions) {
+export function createApi({ store, notifier = new LocalNotifier(), limits = {}, trustProxy = false, random = Math.random }: ApiOptions) {
   const { maxRooms, maxStreamsPerRoom, roomIdleMs, creationsPerIp, creationWindowMs, streamsPerIp } = { ...DEFAULT_LIMITS, ...limits };
-  const rooms = new RoomService(store, notifier);
+  const rooms = new RoomService(store, notifier, Date.now, random);
   const perIp = new IpLimits({ creations: creationsPerIp, windowMs: creationWindowMs, streams: streamsPerIp });
   const sweep = () => rooms.sweep(roomIdleMs).catch((error: unknown) => console.error(error));
   setInterval(() => {
@@ -200,10 +201,24 @@ function actionFor(action: Exclude<RoomAction, typeof RoomAction.Delete>, body: 
     case RoomAction.SetCity: {
       const clan = body.clan;
       const coord = body.coord ?? null;
-      if (!Number.isInteger(clan) || (coord !== null && !isCoord(coord))) {
+      if (!isClan(clan) || (coord !== null && !isCoord(coord))) {
         throw new RoomError(400, "Invalid City placement");
       }
-      return (room) => room.setCity(token, as, clan as number, coord);
+      return (room) => room.setCity(token, as, clan, coord);
+    }
+    case RoomAction.Bid: {
+      const amount = body.amount;
+      if (!Number.isInteger(amount)) {
+        throw new RoomError(400, "Invalid bid");
+      }
+      return (room) => room.bid(token, as, amount as number);
+    }
+    case RoomAction.ChooseClan: {
+      const clan = body.clan;
+      if (!isClan(clan)) {
+        throw new RoomError(400, "Invalid Clan");
+      }
+      return (room) => room.chooseClan(token, as, clan);
     }
     case RoomAction.ToggleTemple: {
       const coord = body.coord;
@@ -220,6 +235,10 @@ function actionFor(action: Exclude<RoomAction, typeof RoomAction.Delete>, body: 
       return (room) => room.agree(token, as, agreed);
     }
   }
+}
+
+function isClan(value: unknown): value is Clan {
+  return typeof value === "string" && (Object.values(Clan) as string[]).includes(value);
 }
 
 function requireMethod(req: IncomingMessage, method: string) {
@@ -251,15 +270,25 @@ function optionsOf(body: Record<string, unknown>): Partial<RoomOptions> {
   if (typeof options !== "object" || options === null) {
     throw new RoomError(400, "Invalid options");
   }
-  const { clanPowers, map } = options as Record<string, unknown>;
+  const { clanPowers, map, bidding, clans } = options as Record<string, unknown>;
+  const flag = (value: unknown) => value === undefined || typeof value === "boolean";
+  const validClans =
+    clans === undefined || (Array.isArray(clans) && clans.every(isClan) && new Set(clans).size === clans.length);
   const valid =
-    (clanPowers === undefined || typeof clanPowers === "boolean") &&
+    flag(clanPowers) &&
+    flag(bidding) &&
+    validClans &&
     (map === undefined || map === MapMode.Prebuilt || map === MapMode.Custom) &&
-    (clanPowers !== undefined || map !== undefined);
+    [clanPowers, map, bidding, clans].some((value) => value !== undefined);
   if (!valid) {
     throw new RoomError(400, "Invalid options");
   }
-  return { clanPowers: clanPowers as boolean | undefined, map: map as RoomOptions["map"] | undefined };
+  return {
+    clanPowers: clanPowers as boolean | undefined,
+    map: map as RoomOptions["map"] | undefined,
+    bidding: bidding as boolean | undefined,
+    clans: clans as Clan[] | undefined,
+  };
 }
 
 function credentials(body: Record<string, unknown>): Credentials {

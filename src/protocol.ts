@@ -1,5 +1,5 @@
 import type { Board, Clan, Coord, GameOptions, Grid, Plan, PlayerId, Tile } from "./game_types.ts";
-import type { SetupStage } from "./game/setup/setup.ts";
+import type { BidRound, SetupStage } from "./game/setup/setup.ts";
 import type { TileGroupId } from "./game/setup/tile_groups.ts";
 import type { TurnEvent } from "./game/turn/events.ts";
 
@@ -14,6 +14,7 @@ export type MapMode = (typeof MapMode)[keyof typeof MapMode];
 
 export interface RoomOptions extends GameOptions {
   map: MapMode;
+  clans: Clan[];
 }
 
 export interface Session {
@@ -25,7 +26,7 @@ export interface Session {
 export interface Seat {
   id: PlayerId;
   name: string;
-  clan: Clan;
+  clan: Clan | null;
   submitted: boolean;
   placeholder: boolean;
   left: boolean;
@@ -56,7 +57,22 @@ export interface SetupView {
   cities: (Coord | null)[];
   temples: Coord[];
   agreed: PlayerId[];
+  clans: Clan[];
+  owners: (PlayerId | null)[];
+  withBidding: boolean;
   templesLocked: boolean;
+  citiesLocked: boolean;
+  bidding: BiddingView | null;
+}
+
+export interface BiddingView {
+  chao: number[];
+  contenders: PlayerId[];
+  submitted: PlayerId[];
+  yourBid: number | null;
+  chooser: PlayerId | null;
+  tieBreak: boolean;
+  history: BidRound[];
 }
 
 export interface PlayerView {
@@ -85,11 +101,15 @@ export interface Credentials {
   as?: PlayerId;
 }
 
-export type OptionsRequest = Credentials & { options: Partial<Pick<RoomOptions, "clanPowers" | "map">> };
+export type OptionsRequest = Credentials & { options: Partial<Pick<RoomOptions, "clanPowers" | "map" | "bidding" | "clans">> };
 
 export type PlaceTileRequest = Credentials & { tile: TileGroupId; anchor: Coord; rotation: number };
 
-export type SetCityRequest = Credentials & { clan: PlayerId; coord: Coord | null };
+export type SetCityRequest = Credentials & { clan: Clan; coord: Coord | null };
+
+export type BidRequest = Credentials & { amount: number };
+
+export type ChooseClanRequest = Credentials & { clan: Clan };
 
 export type ToggleTempleRequest = Credentials & { coord: Coord };
 
@@ -111,6 +131,8 @@ export const RoomAction = {
   SetCity: "set-city",
   ToggleTemple: "toggle-temple",
   Agree: "agree",
+  Bid: "bid",
+  ChooseClan: "choose-clan",
 } as const;
 
 export type RoomAction = (typeof RoomAction)[keyof typeof RoomAction];

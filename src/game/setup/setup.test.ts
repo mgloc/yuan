@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Building, TileType } from "../../game_types.ts";
+import { Building, Clan, TileType } from "../../game_types.ts";
 import { provinceAt } from "../tile/coords.ts";
 import { ringAround } from "./hex.ts";
 import {
@@ -38,7 +38,7 @@ function placeAnywhere(setup: SetupState, active: number[]) {
 }
 
 function placeAll(players: number): SetupState {
-  const setup = newSetup(players, fixed);
+  const setup = newSetup(players, fixed, false);
   const active = Array.from({ length: players }, (_, i) => i);
   while (setup.stage === SetupStage.Tiles) {
     placeAnywhere(setup, active);
@@ -48,9 +48,9 @@ function placeAll(players: number): SetupState {
 
 describe("tile dealing", () => {
   it("deals the tiles for the player count evenly", () => {
-    expect(newSetup(2, fixed).hands.map((hand) => hand.length)).toEqual([4, 4]);
-    expect(newSetup(3, fixed).hands.map((hand) => hand.length)).toEqual([4, 4, 4]);
-    expect(newSetup(4, fixed).hands.map((hand) => hand.length)).toEqual([4, 4, 4, 3]);
+    expect(newSetup(2, fixed, false).hands.map((hand) => hand.length)).toEqual([4, 4]);
+    expect(newSetup(3, fixed, false).hands.map((hand) => hand.length)).toEqual([4, 4, 4]);
+    expect(newSetup(4, fixed, false).hands.map((hand) => hand.length)).toEqual([4, 4, 4, 3]);
   });
 });
 
@@ -62,7 +62,7 @@ describe("tile placement", () => {
   });
 
   it("starts at the centre, then requires touching without overlap", () => {
-    const setup = newSetup(2, fixed);
+    const setup = newSetup(2, fixed, false);
     const [first, second] = [setup.hands[0][0], setup.hands[1][0]];
     expect(placeTile(setup, 0, first, { col: 2, row: 2 }, 0, [0, 1])).toBe("The first tile goes at the centre");
     expect(placeTile(setup, 1, second, WORK_CENTER, 0, [0, 1])).toBe("It is not your turn to place a tile");
@@ -86,7 +86,7 @@ describe("tile placement", () => {
   });
 
   it("hands the tiles of a leaving player to the others", () => {
-    const setup = newSetup(3, fixed);
+    const setup = newSetup(3, fixed, false);
     handOver(setup, 0, [1, 2]);
     expect(setup.hands.map((hand) => hand.length)).toEqual([0, 6, 6]);
     expect(setup.turn).toBe(1);
@@ -99,29 +99,31 @@ describe("Cities and Temples by consensus", () => {
     const provinces = setup.tiles.flatMap((line, row) => line.flatMap((tile, col) => (tile && tile.name ? [{ col, row }] : [])));
     const water = setup.tiles.flatMap((line, row) => line.flatMap((tile, col) => (tile?.type === TileType.Water ? [{ col, row }] : [])));
     expect(setAgreed(setup, 0, true)).toBe("Every Clan needs a starting City");
-    expect(setCity(setup, 0, water[0])).toBe("A City goes on a Province");
-    expect(setCity(setup, 0, provinces[0])).toBeNull();
-    expect(setCity(setup, 1, provinces[0])).toBe("Another Clan already starts there");
-    expect(setCity(setup, 1, provinces[5])).toBeNull();
+    expect(setCity(setup, Clan.Suhey, water[0])).toBe("A City goes on a Province");
+    expect(setCity(setup, Clan.Suhey, provinces[0])).toBeNull();
+    expect(setCity(setup, Clan.Xiangi, provinces[0])).toBe("Another Clan already starts there");
+    expect(setCity(setup, Clan.Xiangi, provinces[5])).toBeNull();
     expect(setAgreed(setup, 0, true)).toBeNull();
     expect(everyoneAgreed(setup, [0, 1])).toBe(false);
-    setCity(setup, 1, provinces[6]);
+    setCity(setup, Clan.Xiangi, provinces[6]);
     expect(setup.agreed).toEqual([]);
     setAgreed(setup, 0, true);
     setAgreed(setup, 1, true);
     expect(everyoneAgreed(setup, [0, 1])).toBe(true);
-    expect(nextStage(setup)).toBe(false);
+    nextStage(setup);
     expect(setup.stage).toBe(SetupStage.Temples);
 
     expect(toggleTemple(setup, provinces[0])).toBeNull();
     expect(toggleTemple(setup, provinces[2])).toBeNull();
     expect(toggleTemple(setup, provinces[2])).toBeNull();
     expect(setup.temples).toEqual([provinces[0]]);
-    expect(nextStage(setup)).toBe(true);
+    nextStage(setup);
+    expect(setup.stage).toBe(SetupStage.Clans);
+    setup.owners = [1, 0];
 
     const board = setupBoard(setup);
-    expect(provinceAt(board, provinces[0])).toMatchObject({ owner: 0, building: Building.City });
-    expect(provinceAt(board, provinces[6])).toMatchObject({ owner: 1, building: Building.City });
+    expect(provinceAt(board, provinces[0])).toMatchObject({ owner: 1, building: Building.City });
+    expect(provinceAt(board, provinces[6])).toMatchObject({ owner: 0, building: Building.City });
     expect(board.provinces.flat().filter((province) => province?.temple)).toHaveLength(setup.temples.length);
   });
 
