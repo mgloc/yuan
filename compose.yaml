@@ -1,5 +1,6 @@
 services:
   yuan:
+    image: ghcr.io/mgloc/yuan:latest
     build: .
     restart: unless-stopped
     ports:
