@@ -7,6 +7,7 @@ export interface TurnBarSeat {
   color: string;
   submitted: boolean;
   you: boolean;
+  left: boolean;
 }
 
 export interface TurnBarData {
@@ -17,6 +18,7 @@ export interface TurnBarData {
   seats: TurnBarSeat[];
   status: string;
   winner: string | null;
+  exitLabel: string;
 }
 
 export class TurnBar {
@@ -24,14 +26,17 @@ export class TurnBar {
   private title: HTMLElement;
   private seats: HTMLElement;
   private status: HTMLElement;
+  private exit: HTMLButtonElement;
 
-  constructor(container: HTMLElement) {
+  constructor(container: HTMLElement, onExit: () => void) {
     this.root = element("div", "turn-bar");
     const bar = element("div", "turn-bar__bar");
     this.title = element("div", "turn-bar__title");
     this.seats = element("div", "turn-bar__seats");
     this.status = element("span", "turn-bar__hint turn-bar__status");
-    bar.append(this.title, this.seats, this.status);
+    this.exit = element("button", "player-button player-button--ghost turn-bar__exit");
+    this.exit.addEventListener("click", onExit);
+    bar.append(this.title, this.seats, this.status, this.exit);
     this.root.append(bar);
     container.appendChild(this.root);
   }
@@ -43,14 +48,20 @@ export class TurnBar {
     );
     this.seats.replaceChildren(
       ...data.seats.map((seat) => {
-        const classes = ["turn-bar__seat", seat.submitted ? "turn-bar__seat--ready" : "", seat.you ? "turn-bar__seat--you" : ""];
+        const classes = [
+          "turn-bar__seat",
+          seat.submitted && !seat.left ? "turn-bar__seat--ready" : "",
+          seat.you ? "turn-bar__seat--you" : "",
+          seat.left ? "turn-bar__seat--left" : "",
+        ];
         const node = element("span", classes.filter(Boolean).join(" "), seat.label);
         node.style.setProperty("--seat-color", seat.color);
-        node.title = `${seat.clan} · ${seat.submitted ? "Plan submitted" : "Planning"}`;
+        node.title = `${seat.clan} · ${seat.left ? "Left the game, passes every turn" : seat.submitted ? "Plan submitted" : "Planning"}`;
         return node;
       }),
     );
     this.status.textContent = data.status;
+    this.exit.textContent = data.exitLabel;
   }
 
   dispose() {

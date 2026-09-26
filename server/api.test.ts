@@ -181,3 +181,37 @@ describe("game rules on the server", () => {
     controller.abort();
   });
 });
+
+describe("closing and leaving", () => {
+  it("lets only the host delete the game and tells connected players", async () => {
+    const { host, guest, code } = await game();
+    expect((await call(`/api/games/${code}/delete`, { token: guest.token })).status).toBe(403);
+
+    const controller = new AbortController();
+    const response = await fetch(`${base}/api/games/${code}/events?token=${guest.token}`, { signal: controller.signal });
+    const reader = response.body!.getReader();
+    let text = "";
+    while (!text.includes("\n\n")) {
+      text += new TextDecoder().decode((await reader.read()).value);
+    }
+
+    expect((await call(`/api/games/${code}/delete`, { token: host.token })).status).toBe(200);
+    while (!text.includes("event: closed")) {
+      const { value, done } = await reader.read();
+      if (done) {
+        break;
+      }
+      text += new TextDecoder().decode(value);
+    }
+    expect(text).toContain("event: closed");
+    controller.abort();
+    expect((await call(`/api/games/${code}/join`, { name: "Late" })).status).toBe(404);
+  });
+
+  it("drops the stream of a player who left", async () => {
+    const { host, guest, code } = await game();
+    await call(`/api/games/${code}/leave`, { token: guest.token });
+    expect((await firstView(guest)).status).toBe(403);
+    expect((await call(`/api/games/${code}/leave`, { token: host.token })).status).toBe(409);
+  });
+});

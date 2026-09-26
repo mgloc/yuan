@@ -55,14 +55,18 @@ export function createApi({ store, notifier = new LocalNotifier(), limits = {} }
       throw new RoomError(404, "Unknown action");
     }
     const { token, as } = credentials(body);
-    const change = actionFor(action as RoomAction, body, token, as);
+    if (action === RoomAction.Delete) {
+      await rooms.delete(code, token);
+      return send(res, 200, {});
+    }
+    const change = actionFor(action as Exclude<RoomAction, typeof RoomAction.Delete>, body, token, as);
     await rooms.mutate(code, change);
     send(res, 200, {});
   };
 
   const stream = async (req: IncomingMessage, res: ServerResponse, code: string, token: string, as: PlayerId | undefined) => {
     const loaded = await rooms.load(code);
-    const player = loaded.room.actor(token, as);
+    loaded.room.actor(token, as);
     if (notifier.listeners(loaded.room.code) >= maxStreamsPerRoom) {
       throw new RoomError(429, "Too many connections to this game");
     }
@@ -78,12 +82,20 @@ export function createApi({ store, notifier = new LocalNotifier(), limits = {} }
         return;
       }
       version = next;
-      res.write(`data: ${JSON.stringify(room.view(player))}\n\n`);
+      let viewer: PlayerId;
+      try {
+        viewer = room.actor(token, as);
+      } catch {
+        res.end();
+        return;
+      }
+      res.write(`data: ${JSON.stringify(room.view(viewer, token))}\n\n`);
     };
     push(loaded);
     const refresh = () =>
       rooms.load(code).then(push, (error: unknown) => {
         if (error instanceof RoomError && error.status === 404) {
+          res.write("event: closed\ndata: {}\n\n");
           res.end();
         }
       });
@@ -131,7 +143,7 @@ export function createApi({ store, notifier = new LocalNotifier(), limits = {} }
   };
 }
 
-function actionFor(action: RoomAction, body: Record<string, unknown>, token: string, as: PlayerId | undefined): (room: Room) => void {
+function actionFor(action: Exclude<RoomAction, typeof RoomAction.Delete>, body: Record<string, unknown>, token: string, as: PlayerId | undefined): (room: Room) => void {
   switch (action) {
     case RoomAction.Options: {
       const options = optionsOf(body);
@@ -154,6 +166,8 @@ function actionFor(action: RoomAction, body: Record<string, unknown>, token: str
       return (room) => room.restart(token);
     case RoomAction.Lobby:
       return (room) => room.backToLobby(token);
+    case RoomAction.Leave:
+      return (room) => room.leave(token);
   }
 }
 

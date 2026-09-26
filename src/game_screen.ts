@@ -18,7 +18,9 @@ import { CLAN_COLORS, clanCssColor } from "./rendering/clan_colors.ts";
 import { TilePicker } from "./rendering/picking.ts";
 import { ProceduralPieceFactory } from "./rendering/pieces/procedural_factory.ts";
 import { Renderer } from "./rendering/renderer.ts";
+import { TableView } from "./rendering/views/table_view.ts";
 import { TileGridView } from "./rendering/views/tile_grid_view.ts";
+import { TILE_RADIUS } from "./rendering/views/tile_view.ts";
 import { InfoPanel } from "./ui/info_panel.ts";
 
 const FRAME_TOP_INSET = 72;
@@ -33,7 +35,7 @@ export class GameScreen {
   private frame = 0;
   private draftKey: string;
 
-  constructor(container: HTMLElement, client: GameClient, initial: PlayerView) {
+  constructor(container: HTMLElement, client: GameClient, initial: PlayerView, onExit: () => void) {
     this.view = new Observable(initial);
     this.game = new Observable(gameInfo(initial, initial.match!));
     this.draftKey = draftKey(initial);
@@ -57,11 +59,13 @@ export class GameScreen {
       submit: (plan) => client.submit(plan),
       edit: () => client.edit(),
     });
-    const turn = new TurnController(container, this.view, this.game, cssColor);
+    const turn = new TurnController(container, this.view, this.game, cssColor, onExit);
     const unsubscribe = this.game.onChange((game) => grid.updateProvinces(game.provinces, clanColor));
     const rig = new CameraRig(renderer);
     const focus = new CameraFocusController(rig, grid, selection);
     const bounds = new THREE.Box3().setFromObject(grid.root);
+    const table = new TableView(renderer.scene, bounds, grid.tileCenters(), TILE_RADIUS);
+    renderer.environment.setGround(table.floorZ);
     const layout = (apply: boolean) => {
       const bottom = window.innerHeight - board.root.getBoundingClientRect().top;
       container.style.setProperty("--hud-bottom", `${bottom}px`);
@@ -82,6 +86,7 @@ export class GameScreen {
       () => window.removeEventListener("resize", onResize),
       () => boardSize.disconnect(),
       () => container.style.removeProperty("--hud-bottom"),
+      () => table.dispose(renderer.scene),
       () => focus.dispose(),
       () => rig.dispose(),
       () => turn.dispose(),
@@ -92,7 +97,7 @@ export class GameScreen {
     );
 
     if (initial.debug && client.isHost) {
-      const debug = new DebugController(container, this.view, client.session.player, cssColor, {
+      const debug = new DebugController(container, this.view, initial.self, cssColor, {
         actAs: (player) => client.actAs(player),
         restart: () => client.restart(),
         toLobby: () => client.toLobby(),

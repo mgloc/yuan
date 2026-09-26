@@ -132,6 +132,27 @@ body {
   font-size: 14px;
 }
 
+.screen__link {
+  align-self: center;
+  padding: 4px 8px;
+  border: 0;
+  background: none;
+  color: #a8b0b8;
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.screen__link:hover {
+  color: #f2f2f2;
+}
+
+.screen__link--danger:hover {
+  color: #ff8a80;
+}
+
 .lobby__code {
   display: flex;
   align-items: center;

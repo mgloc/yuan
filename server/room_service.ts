@@ -61,6 +61,13 @@ export class RoomService {
     throw new RoomError(503, "The game is busy, try again");
   }
 
+  async delete(code: string, token: string) {
+    const { room } = await this.load(code);
+    room.requireHost(token);
+    await this.store.delete(room.code);
+    this.notifier.publish(room.code);
+  }
+
   async sweep(idleMs: number): Promise<number> {
     return this.store.deleteIdle(this.now() - idleMs, this.notifier.activeCodes());
   }

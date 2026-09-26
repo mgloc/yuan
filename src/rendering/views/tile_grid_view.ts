@@ -47,6 +47,10 @@ export class TileGridView {
     parent.add(this.root);
   }
 
+  tileCenters(): THREE.Vector3[] {
+    return [...this.views.values()].map((view) => view.root.getWorldPosition(new THREE.Vector3()));
+  }
+
   viewAt(coord: Coord): TileView | null {
     return this.views.get(coordKey(coord)) ?? null;
   }

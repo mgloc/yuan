@@ -15,6 +15,7 @@ export interface Seat {
   clan: Clan;
   submitted: boolean;
   placeholder: boolean;
+  left: boolean;
 }
 
 export interface TurnLog {
@@ -34,6 +35,7 @@ export interface MatchView extends Board {
 export interface PlayerView {
   code: string;
   you: PlayerId;
+  self: PlayerId;
   host: PlayerId;
   debug: boolean;
   options: GameOptions;
@@ -67,6 +69,8 @@ export const RoomAction = {
   AddPlayer: "add-player",
   Restart: "restart",
   Lobby: "lobby",
+  Leave: "leave",
+  Delete: "delete",
 } as const;
 
 export type RoomAction = (typeof RoomAction)[keyof typeof RoomAction];

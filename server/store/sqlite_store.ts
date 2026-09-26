@@ -43,6 +43,10 @@ export class SqliteRoomStore implements RoomStore {
     return result.changes === 1;
   }
 
+  async delete(code: string): Promise<boolean> {
+    return this.db.prepare("DELETE FROM rooms WHERE code = ?").run(code).changes === 1;
+  }
+
   async count(): Promise<number> {
     return (this.db.prepare("SELECT COUNT(*) AS count FROM rooms").get() as { count: number }).count;
   }

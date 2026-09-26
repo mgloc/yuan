@@ -9,6 +9,7 @@ const TYPES: Record<string, string> = {
   ".svg": "image/svg+xml",
   ".png": "image/png",
   ".json": "application/json",
+  ".exr": "image/x-exr",
 };
 
 export function staticFiles(directory: string) {

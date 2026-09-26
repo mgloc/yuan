@@ -109,3 +109,40 @@ describe("debug mode", () => {
     expect(members).toHaveLength(2);
   });
 });
+
+describe("leaving", () => {
+  it("frees the seat in the lobby and renumbers the others", () => {
+    const { room, members } = lobby(3);
+    room.leave(members[1].token);
+    const view = room.view(room.actor(members[2].token), members[2].token);
+    expect(view.seats.map(({ name }) => name)).toEqual(["P0", "P2"]);
+    expect(view.seats.map(({ clan }) => clan)).toEqual([Clan.Suhey, Clan.Xiangi]);
+    expect(view.self).toBe(1);
+    expect(() => room.actor(members[1].token)).toThrow("Unknown player");
+  });
+
+  it("forfeits a running game: the seat passes every turn", () => {
+    const { room, members, host } = lobby(3);
+    room.start(host);
+    room.leave(members[2].token);
+    expect(room.view(0).seats[2]).toMatchObject({ left: true, submitted: true });
+    room.submit(host, undefined, emptyPlan());
+    room.submit(members[1].token, undefined, emptyPlan());
+    expect(room.view(0).match!.turn).toBe(2);
+    expect(room.view(0).seats[2].submitted).toBe(true);
+    expect(() => room.submit(members[2].token, undefined, emptyPlan())).toThrow("You left");
+  });
+
+  it("resolves at once when the last missing player leaves", () => {
+    const { room, members, host } = lobby(2);
+    room.start(host);
+    room.submit(host, undefined, emptyPlan());
+    room.leave(members[1].token);
+    expect(room.view(0).match!.turn).toBe(2);
+  });
+
+  it("does not let the host leave", () => {
+    const { room, host } = lobby(2);
+    expect(() => room.leave(host)).toThrow("delete the game instead");
+  });
+});

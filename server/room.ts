@@ -23,6 +23,7 @@ export interface Member {
   name: string;
   token: string;
   placeholder: boolean;
+  left?: boolean;
 }
 
 export interface RoomState {
@@ -74,7 +75,7 @@ export class Room {
     if (members.length >= MAX_PLAYERS) {
       throw new RoomError(409, "The lobby is full");
     }
-    const member = { id: members.length, name: cleanName(name, members.length), token: this.newToken(), placeholder };
+    const member: Member = { id: members.length, name: cleanName(name, members.length), token: this.newToken(), placeholder };
     members.push(member);
     return member;
   }
@@ -84,6 +85,9 @@ export class Room {
     const member = members.find((candidate) => candidate.token === token);
     if (member === undefined) {
       throw new RoomError(403, "Unknown player");
+    }
+    if (member.left) {
+      throw new RoomError(403, "You left this game");
     }
     if (as === undefined || as === member.id) {
       return member.id;
@@ -132,8 +136,28 @@ export class Room {
       throw new RoomError(422, errors.join(", "));
     }
     this.state.plans[player] = isPassing(plan) ? emptyPlan() : plan;
-    if (Object.keys(this.state.plans).length === game.players.length) {
-      this.resolve(game);
+    this.resolveIfReady();
+  }
+
+  leave(token: string) {
+    const player = this.actor(token);
+    if (player === this.state.host) {
+      throw new RoomError(409, "The host cannot leave, delete the game instead");
+    }
+    if (!this.started) {
+      this.state.members = this.state.members.filter(({ id }) => id !== player).map((member, id) => ({ ...member, id }));
+      return;
+    }
+    this.state.members[player].left = true;
+    if (!this.state.game!.finished) {
+      this.state.plans[player] ??= emptyPlan();
+      this.resolveIfReady();
+    }
+  }
+
+  requireHost(token: string) {
+    if (this.actor(token) !== this.state.host) {
+      throw new RoomError(403, "Only the host can do that");
     }
   }
 
@@ -161,9 +185,10 @@ export class Room {
     this.state.game = null;
     this.state.plans = {};
     this.state.log = [];
+    this.state.members = this.state.members.filter(({ left }) => !left).map((member, id) => ({ ...member, id }));
   }
 
-  view(player: PlayerId): PlayerView {
+  view(player: PlayerId, viewer?: string): PlayerView {
     const { code, host, debug, options, members, game, plans, log } = this.state;
     const seats: Seat[] = members.map((member) => ({
       id: member.id,
@@ -171,10 +196,13 @@ export class Room {
       clan: clanOf(member.id),
       submitted: plans[member.id] !== undefined,
       placeholder: member.placeholder,
+      left: member.left === true,
     }));
+    const self = members.find(({ token }) => token === viewer)?.id ?? player;
     return {
       code,
       you: player,
+      self,
       host,
       debug,
       options,
@@ -200,6 +228,21 @@ export class Room {
     this.state.game = createGame(createDefaultBoard(players), players.map(clanOf), this.state.options);
     this.state.plans = {};
     this.state.log = [];
+    this.passForLeavers();
+  }
+
+  private resolveIfReady() {
+    const game = this.requireGame();
+    if (Object.keys(this.state.plans).length === game.players.length) {
+      this.resolve(game);
+    }
+  }
+
+  private passForLeavers() {
+    if (this.state.game === null || this.state.game.finished) {
+      return;
+    }
+    this.state.members.filter(({ left }) => left).forEach(({ id }) => (this.state.plans[id] = emptyPlan()));
   }
 
   private resolve(game: GameState) {
@@ -208,12 +251,8 @@ export class Room {
     this.state.log = [...this.state.log, { turn: game.turn, events }];
     this.state.game = state;
     this.state.plans = {};
-  }
-
-  private requireHost(token: string) {
-    if (this.actor(token) !== this.state.host) {
-      throw new RoomError(403, "Only the host can do that");
-    }
+    this.passForLeavers();
+    this.resolveIfReady();
   }
 
   private requireDebugHost(token: string) {

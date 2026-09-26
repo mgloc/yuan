@@ -24,6 +24,7 @@ export interface LobbyHandlers {
   onLaunch: () => void;
   onAddPlayer: () => void;
   onCopyLink: () => void;
+  onExit: () => void;
 }
 
 export class Lobby {
@@ -36,6 +37,7 @@ export class Lobby {
   private addPlayer: HTMLButtonElement;
   private launch: HTMLButtonElement;
   private hint: HTMLElement;
+  private exit: HTMLButtonElement;
 
   constructor(container: HTMLElement, handlers: LobbyHandlers) {
     this.root = element("main", "screen");
@@ -73,8 +75,10 @@ export class Lobby {
     this.launch = element("button", "player-button", "Launch game");
     this.launch.addEventListener("click", handlers.onLaunch);
     this.hint = element("p", "screen__hint");
+    this.exit = element("button", "screen__link");
+    this.exit.addEventListener("click", handlers.onExit);
     const launchSection = element("section", "screen__section");
-    launchSection.append(this.launch, this.hint);
+    launchSection.append(this.launch, this.hint, this.exit);
 
     card.append(codeRow, this.badges, playersSection, optionsSection, launchSection);
     this.root.append(card);
@@ -119,6 +123,8 @@ export class Lobby {
     this.clanLabel.classList.toggle("screen__option--disabled", !data.isHost);
 
     const enough = data.seats.length >= data.minPlayers;
+    this.exit.textContent = data.isHost ? "Delete lobby" : "Leave lobby";
+    this.exit.classList.toggle("screen__link--danger", data.isHost);
     this.launch.hidden = !data.isHost;
     this.launch.disabled = !enough;
     this.hint.textContent = !data.isHost

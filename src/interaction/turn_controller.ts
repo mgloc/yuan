@@ -14,11 +14,17 @@ export class TurnController {
   private shownTurns = -1;
   private unsubscribe: () => void;
 
-  constructor(container: HTMLElement, view: Observable<PlayerView>, game: Observable<GameInfo>, colorOf: (player: PlayerId) => string) {
+  constructor(
+    container: HTMLElement,
+    view: Observable<PlayerView>,
+    game: Observable<GameInfo>,
+    colorOf: (player: PlayerId) => string,
+    onExit: () => void,
+  ) {
     this.view = view;
     this.game = game;
     this.colorOf = colorOf;
-    this.bar = new TurnBar(container);
+    this.bar = new TurnBar(container, onExit);
     this.log = new LogPanel(container);
     this.unsubscribe = game.onChange(() => this.render());
     this.render();
@@ -52,9 +58,11 @@ export class TurnController {
         color: this.colorOf(seat.id),
         submitted: seat.submitted,
         you: seat.id === view.you,
+        left: seat.left,
       })),
       status: this.status(view, game),
       winner: winner === undefined ? null : `${winner.name} (${winner.clan})`,
+      exitLabel: view.host === view.self ? "End game" : "Leave",
     });
   }
 
@@ -62,7 +70,7 @@ export class TurnController {
     if (game.finished) {
       return "Game over";
     }
-    const waiting = view.seats.filter(({ submitted }) => !submitted);
+    const waiting = view.seats.filter(({ submitted, left }) => !submitted && !left);
     if (waiting.length === 0) {
       return "Resolving…";
     }

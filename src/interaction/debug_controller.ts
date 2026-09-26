@@ -52,7 +52,7 @@ export class DebugController {
   }
 
   private controllable(view: PlayerView) {
-    return view.seats.filter((seat) => seat.id === this.host || seat.placeholder);
+    return view.seats.filter((seat) => !seat.left && (seat.id === this.host || seat.placeholder));
   }
 
   private onKeyDown = (event: KeyboardEvent) => {

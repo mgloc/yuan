@@ -3,8 +3,10 @@ import { Observable } from "../interaction/observable.ts";
 import { RoomAction, type PlayerView, type Session } from "../protocol.ts";
 import { eventsUrl, roomAction } from "./api.ts";
 
+export type GoneReason = "closed" | "unavailable";
+
 export interface GameClientHandlers {
-  onGone: () => void;
+  onGone: (reason: GoneReason) => void;
   onError: (message: string) => void;
 }
 
@@ -23,11 +25,12 @@ export class GameClient {
   }
 
   get isHost(): boolean {
-    return this.view.get()?.host === this.session.player;
+    const view = this.view.get();
+    return view !== null && view.host === view.self;
   }
 
   actAs(player: PlayerId) {
-    const as = player === this.session.player ? undefined : player;
+    const as = player === this.view.get()?.self ? undefined : player;
     if (as === this.as) {
       return;
     }
@@ -65,6 +68,14 @@ export class GameClient {
     this.send(RoomAction.Lobby);
   }
 
+  async leave() {
+    await this.finish(RoomAction.Leave);
+  }
+
+  async deleteGame() {
+    await this.finish(RoomAction.Delete);
+  }
+
   close() {
     window.removeEventListener("beforeunload", this.onUnload);
     this.disconnect();
@@ -81,13 +92,29 @@ export class GameClient {
     this.disconnect();
     const source = new EventSource(eventsUrl(this.session, this.as));
     source.onmessage = (event) => this.view.set(JSON.parse(event.data) as PlayerView);
+    source.addEventListener("closed", () => {
+      if (this.source === source) {
+        this.close();
+        this.handlers.onGone("closed");
+      }
+    });
     source.onerror = () => {
       if (source.readyState === EventSource.CLOSED && this.source === source) {
         this.close();
-        this.handlers.onGone();
+        this.handlers.onGone("unavailable");
       }
     };
     this.source = source;
+  }
+
+  private async finish(action: RoomAction) {
+    this.disconnect();
+    try {
+      await roomAction(this.session.code, action, { token: this.session.token });
+    } catch (error) {
+      this.connect();
+      throw error;
+    }
   }
 
   private send(action: RoomAction, body: object = {}) {

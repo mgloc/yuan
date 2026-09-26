@@ -60,14 +60,43 @@ function enter(session: Session) {
   saveSession(session);
   history.replaceState(null, "", `?game=${session.code}`);
   const current = new GameClient(session, {
-    onGone: () => {
+    onGone: (reason) => {
       forgetSession(session.code);
-      showLanding(session.code, "This game is no longer available");
+      if (reason === "closed") {
+        showLanding("", "The host closed the game");
+      } else {
+        showLanding(session.code, "This game is no longer available");
+      }
     },
     onError: (message) => toast.show(message),
   });
   current.view.onChange((view) => view !== null && client === current && route(current, view));
   client = current;
+}
+
+async function exit(current: GameClient) {
+  const view = current.view.get();
+  if (view === null) {
+    return;
+  }
+  const host = current.isHost;
+  const started = view.match !== null && !view.match.finished;
+  const question = host
+    ? `Delete this ${view.match === null ? "lobby" : "game"} for everyone?`
+    : started
+      ? "Leave the game? Your Clan will pass every remaining turn."
+      : "Leave the lobby?";
+  if (!confirm(question)) {
+    return;
+  }
+  try {
+    await (host ? current.deleteGame() : current.leave());
+  } catch (error) {
+    toast.show((error as Error).message);
+    return;
+  }
+  forgetSession(current.session.code);
+  showLanding("", "");
 }
 
 function route(current: GameClient, view: PlayerView) {
@@ -79,6 +108,7 @@ function route(current: GameClient, view: PlayerView) {
       onLaunch: () => current.start(),
       onAddPlayer: () => current.addPlayer(),
       onCopyLink: () => navigator.clipboard?.writeText(`${location.origin}${location.pathname}?game=${view.code}`),
+      onExit: () => exit(current),
     });
     lobby.update({
       code: view.code,
@@ -87,7 +117,7 @@ function route(current: GameClient, view: PlayerView) {
         clan: seat.clan,
         color: clanCssColor(seat.clan),
         host: seat.id === view.host,
-        you: seat.id === current.session.player,
+        you: seat.id === view.self,
         placeholder: seat.placeholder,
       })),
       maxPlayers: MAX_PLAYERS,
@@ -101,7 +131,7 @@ function route(current: GameClient, view: PlayerView) {
   lobby?.dispose();
   lobby = null;
   if (game === null) {
-    game = new GameScreen(container, current, view);
+    game = new GameScreen(container, current, view, () => exit(current));
   } else {
     game.update(view);
   }

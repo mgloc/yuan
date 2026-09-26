@@ -1,7 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { Environment } from "./environment.ts";
 
 const BACKGROUND_COLOR = 0xece8df;
+const HEMISPHERE_INTENSITY = 0.7;
+const SUN_INTENSITY = 1.5;
 const FRAME_MARGIN = 0.03;
 const FIT_ITERATIONS = 4;
 
@@ -24,13 +27,14 @@ export class Renderer {
   debugControls: OrbitControls | null = null;
   container: HTMLElement;
   private insets: ViewInsets = { top: 0, bottom: 0 };
+  environment: Environment;
 
   constructor(width: number, height: number, container: HTMLElement) {
     this.width = width;
     this.height = height;
     this.container = container;
 
-    this.camera = new THREE.PerspectiveCamera(70, width / height, 0.1, 100);
+    this.camera = new THREE.PerspectiveCamera(70, width / height, 0.1, Environment.radius * 3);
     this.camera.up.set(0, 0, 1);
     this.camera.position.set(10, 10, 10);
     this.camera.lookAt(0, 0, 0);
@@ -38,24 +42,25 @@ export class Renderer {
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(BACKGROUND_COLOR);
-    this.scene.add(new THREE.HemisphereLight(0xfffaf0, 0x8a7a55, 2.2));
-    this.sun = new THREE.DirectionalLight(0xfff4e4, 2.0);
+    this.scene.add(new THREE.HemisphereLight(0xfffaf0, 0x8a7a55, HEMISPHERE_INTENSITY));
+    this.sun = new THREE.DirectionalLight(0xfff4e4, SUN_INTENSITY);
     this.sun.position.set(6, -4, 10);
     this.scene.add(this.sun);
-    this.scene.fog = new THREE.Fog(BACKGROUND_COLOR, 30, 120);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(width, height);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.toneMapping = THREE.NeutralToneMapping;
     this.container.appendChild(this.renderer.domElement);
     this.orbit = new OrbitControls(this.camera, this.renderer.domElement);
 
+    this.environment = new Environment(this.renderer, this.scene);
     this.initDebug();
   }
 
   private initDebug() {
     if (import.meta.env.DEV) {
-      this.debugCamera = new THREE.PerspectiveCamera(70, this.width / this.height, 0.1, 500);
+      this.debugCamera = new THREE.PerspectiveCamera(70, this.width / this.height, 0.1, Environment.radius * 3);
       this.debugCamera.up.set(0, 0, 1);
       this.debugCamera.position.set(30, -30, 30);
       this.debugCamera.lookAt(0, 0, 0);
@@ -170,6 +175,7 @@ export class Renderer {
   }
 
   dispose() {
+    this.environment.dispose();
     window.removeEventListener("keydown", this.onKeyDown);
     this.orbit.dispose();
     this.debugControls?.dispose();

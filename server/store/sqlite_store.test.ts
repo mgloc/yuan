@@ -81,6 +81,7 @@ describe("RoomService", () => {
       load: (code) => store.load(code),
       insert: (state, now) => store.insert(state, now),
       count: () => store.count(),
+      delete: (code) => store.delete(code),
       deleteIdle: (before, keep) => store.deleteIdle(before, keep),
       close: () => store.close(),
       save: async (state, version, now) => {
