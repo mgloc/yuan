@@ -12,7 +12,7 @@ let server: Server;
 let base: string;
 
 beforeAll(async () => {
-  const api = createApi({ store: new SqliteRoomStore(":memory:"), limits: { maxRooms: 50, maxStreamsPerRoom: 3 } });
+  const api = createApi({ store: new SqliteRoomStore(":memory:"), limits: { maxRooms: 50, maxStreamsPerRoom: 3, creationsPerIp: 1000 } });
   const serveStatic = staticFiles("/nonexistent");
   server = createServer((req, res) => api(req, res, () => serveStatic(req.url ?? "/", res)));
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));

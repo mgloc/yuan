@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { PlayerId } from "../src/game_types.ts";
 import { RoomAction, type Credentials, type ErrorResponse } from "../src/protocol.ts";
+import { clientIp, IpLimits } from "./ip_limits.ts";
 import { LocalNotifier, type Notifier } from "./notifier.ts";
 import { parsePlan, RoomError, type Room } from "./room.ts";
 import { RoomService } from "./room_service.ts";
@@ -14,31 +15,45 @@ export interface ApiLimits {
   maxRooms: number;
   maxStreamsPerRoom: number;
   roomIdleMs: number;
+  creationsPerIp: number;
+  creationWindowMs: number;
+  streamsPerIp: number;
 }
 
 export interface ApiOptions {
   store: RoomStore;
   notifier?: Notifier;
   limits?: Partial<ApiLimits>;
+  trustProxy?: boolean;
 }
 
 const DEFAULT_LIMITS: ApiLimits = {
   maxRooms: 500,
   maxStreamsPerRoom: 24,
   roomIdleMs: 6 * 60 * 60_000,
+  creationsPerIp: 10,
+  creationWindowMs: 10 * 60_000,
+  streamsPerIp: 20,
 };
 
 const ROOM_ACTIONS = new Set<string>(Object.values(RoomAction));
 
 type Next = () => void;
 
-export function createApi({ store, notifier = new LocalNotifier(), limits = {} }: ApiOptions) {
-  const { maxRooms, maxStreamsPerRoom, roomIdleMs } = { ...DEFAULT_LIMITS, ...limits };
+export function createApi({ store, notifier = new LocalNotifier(), limits = {}, trustProxy = false }: ApiOptions) {
+  const { maxRooms, maxStreamsPerRoom, roomIdleMs, creationsPerIp, creationWindowMs, streamsPerIp } = { ...DEFAULT_LIMITS, ...limits };
   const rooms = new RoomService(store, notifier);
+  const perIp = new IpLimits({ creations: creationsPerIp, windowMs: creationWindowMs, streams: streamsPerIp });
   const sweep = () => rooms.sweep(roomIdleMs).catch((error: unknown) => console.error(error));
-  setInterval(sweep, SWEEP_MS).unref();
+  setInterval(() => {
+    perIp.prune();
+    sweep();
+  }, SWEEP_MS).unref();
 
   const create = async (req: IncomingMessage, res: ServerResponse) => {
+    if (!perIp.allowCreation(clientIp(req, trustProxy))) {
+      throw new RoomError(429, "Too many new games, try again later");
+    }
     const body = await readBody(req);
     await sweep();
     send(res, 201, await rooms.create(nameOf(body), body.debug === true, maxRooms));
@@ -69,6 +84,10 @@ export function createApi({ store, notifier = new LocalNotifier(), limits = {} }
     loaded.room.actor(token, as);
     if (notifier.listeners(loaded.room.code) >= maxStreamsPerRoom) {
       throw new RoomError(429, "Too many connections to this game");
+    }
+    const release = perIp.openStream(clientIp(req, trustProxy));
+    if (release === null) {
+      throw new RoomError(429, "Too many open connections");
     }
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
@@ -101,6 +120,7 @@ export function createApi({ store, notifier = new LocalNotifier(), limits = {} }
       });
     const unsubscribe = notifier.subscribe(loaded.room.code, refresh);
     const keepAlive = setInterval(() => res.write(": keep-alive\n\n"), KEEP_ALIVE_MS);
+    res.on("close", release);
     req.on("close", () => {
       unsubscribe();
       clearInterval(keepAlive);
@@ -244,6 +264,6 @@ async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> 
 }
 
 function send(res: ServerResponse, status: number, body: unknown) {
-  res.writeHead(status, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+  res.writeHead(status, { "Content-Type": "application/json", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
   res.end(JSON.stringify(body));
 }

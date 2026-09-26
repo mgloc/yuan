@@ -8,7 +8,7 @@ import { SqliteRoomStore } from "./store/sqlite_store.ts";
 const PORT = Number(process.env.PORT ?? 8787);
 
 const store = new SqliteRoomStore(databasePath());
-const api = createApi({ store });
+const api = createApi({ store, trustProxy: process.env.YUAN_TRUST_PROXY === "1" });
 const serveStatic = staticFiles(join(import.meta.dirname, "..", "dist"));
 
 const server = createServer((req, res) => api(req, res, () => serveStatic(req.url ?? "/", res))).listen(PORT, () => {

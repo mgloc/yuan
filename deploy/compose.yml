@@ -2,6 +2,8 @@ services:
   yuan:
     image: ghcr.io/mgloc/yuan:latest
     restart: unless-stopped
+    environment:
+      YUAN_TRUST_PROXY: "1"
     volumes:
       - yuan-data:/data
 

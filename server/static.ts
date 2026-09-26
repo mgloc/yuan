@@ -12,6 +12,14 @@ const TYPES: Record<string, string> = {
   ".exr": "image/x-exr",
 };
 
+const SECURITY_HEADERS = {
+  "Content-Security-Policy":
+    "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "no-referrer",
+};
+
 export function staticFiles(directory: string) {
   const root = resolve(directory);
   const index = join(root, "index.html");
@@ -31,7 +39,7 @@ export function staticFiles(directory: string) {
       res.writeHead(404).end("Run npm run build first");
       return;
     }
-    res.writeHead(200, { "Content-Type": TYPES[extname(file)] ?? "application/octet-stream" });
+    res.writeHead(200, { ...SECURITY_HEADERS, "Content-Type": TYPES[extname(file)] ?? "application/octet-stream" });
     createReadStream(file).pipe(res);
   };
 }
