@@ -80,7 +80,7 @@ export class GameScreen {
     );
 
     if (initial.debug && client.isHost) {
-      const debug = new DebugController(container, this.view, cssColor, {
+      const debug = new DebugController(container, this.view, client.session.player, cssColor, {
         actAs: (player) => client.actAs(player),
         restart: () => client.restart(),
         toLobby: () => client.toLobby(),

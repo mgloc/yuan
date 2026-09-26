@@ -14,6 +14,7 @@ export interface Seat {
   name: string;
   clan: Clan;
   submitted: boolean;
+  placeholder: boolean;
 }
 
 export interface TurnLog {

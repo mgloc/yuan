@@ -88,6 +88,7 @@ function route(current: GameClient, view: PlayerView) {
         color: clanCssColor(seat.clan),
         host: seat.id === view.host,
         you: seat.id === current.session.player,
+        placeholder: seat.placeholder,
       })),
       maxPlayers: MAX_PLAYERS,
       minPlayers: MIN_PLAYERS,

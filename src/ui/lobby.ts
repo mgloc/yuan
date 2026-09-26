@@ -6,6 +6,7 @@ export interface LobbySeat {
   color: string;
   host: boolean;
   you: boolean;
+  placeholder: boolean;
 }
 
 export interface LobbyData {
@@ -97,6 +98,9 @@ export class Lobby {
         row.append(element("span", "lobby__name", seat.name), element("span", "lobby__clan", seat.clan));
         if (seat.host) {
           row.append(element("span", "lobby__badge", "Host"));
+        }
+        if (seat.placeholder) {
+          row.append(element("span", "lobby__badge", "Placeholder"));
         }
         if (seat.you) {
           row.append(element("span", "lobby__badge", "You"));

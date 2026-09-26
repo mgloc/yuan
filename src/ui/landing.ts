@@ -25,7 +25,7 @@ export class Landing {
     debug.type = "checkbox";
     const debugLabel = element("label", "screen__option");
     const debugText = element("span", "");
-    debugText.append(element("strong", "", "Debug mode"), element("span", "screen__hint", "Lets you play every seat, add players and restart"));
+    debugText.append(element("strong", "", "Debug mode"), element("span", "screen__hint", "Add placeholder players you can play yourself, restart the game"));
     debugLabel.append(debug, debugText);
     const create = element("button", "player-button", "Create game");
     create.addEventListener("click", () => handlers.onCreate(name.value, debug.checked));

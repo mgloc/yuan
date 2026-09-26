@@ -4,10 +4,10 @@ import { emptyPlan } from "../src/game/plan/plan.ts";
 import { STARTING_CITIES } from "../src/game/default_map.ts";
 import { provinceAt } from "../src/game/tile/coords.ts";
 import { plan } from "../src/game/turn/testing.ts";
-import { Room } from "./room.ts";
+import { newRoomState, Room } from "./room.ts";
 
 let tokens = 0;
-const newRoom = (debug = false) => new Room("CODE", debug, () => `token-${tokens++}`);
+const newRoom = (debug = false) => new Room(newRoomState("CODE", debug), () => `token-${tokens++}`);
 
 function lobby(players: number, debug = false) {
   const room = newRoom(debug);

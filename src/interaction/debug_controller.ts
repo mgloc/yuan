@@ -12,11 +12,19 @@ export interface DebugActions {
 export class DebugController {
   private view: Observable<PlayerView>;
   private actions: DebugActions;
+  private host: PlayerId;
   private bar: DebugBar;
   private unsubscribe: () => void;
 
-  constructor(container: HTMLElement, view: Observable<PlayerView>, colorOf: (player: PlayerId) => string, actions: DebugActions) {
+  constructor(
+    container: HTMLElement,
+    view: Observable<PlayerView>,
+    host: PlayerId,
+    colorOf: (player: PlayerId) => string,
+    actions: DebugActions,
+  ) {
     this.view = view;
+    this.host = host;
     this.actions = actions;
     this.bar = new DebugBar(container, {
       onSeat: actions.actAs,
@@ -24,7 +32,10 @@ export class DebugController {
       onLobby: actions.toLobby,
     });
     const render = (current: PlayerView) =>
-      this.bar.update(current.seats.map((seat) => ({ id: seat.id, label: seat.name, color: colorOf(seat.id) })), current.you);
+      this.bar.update(
+        this.controllable(current).map((seat) => ({ id: seat.id, label: seat.name, color: colorOf(seat.id) })),
+        current.you,
+      );
     render(view.get());
     this.unsubscribe = view.onChange(render);
     window.addEventListener("keydown", this.onKeyDown);
@@ -36,12 +47,16 @@ export class DebugController {
     this.bar.dispose();
   }
 
+  private controllable(view: PlayerView) {
+    return view.seats.filter((seat) => seat.id === this.host || seat.placeholder);
+  }
+
   private onKeyDown = (event: KeyboardEvent) => {
     if (event.key !== "p" || event.target instanceof HTMLInputElement) {
       return;
     }
-    const { seats, you } = this.view.get();
-    const index = seats.findIndex(({ id }) => id === you);
+    const seats = this.controllable(this.view.get());
+    const index = seats.findIndex(({ id }) => id === this.view.get().you);
     this.actions.actAs(seats[(index + 1) % seats.length].id);
   };
 }

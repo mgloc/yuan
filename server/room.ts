@@ -2,6 +2,7 @@ import { ACTION_LEVELS, ActionType, Clan, type Coord, type GameOptions, type Gam
 import { createDefaultBoard, MAX_PLAYERS } from "../src/game/default_map.ts";
 import { createGame } from "../src/game/setup.ts";
 import { resolveTurn } from "../src/game/turn/resolve.ts";
+import { emptyPlan, isPassing } from "../src/game/plan/plan.ts";
 import { planErrors } from "../src/game/turn/validation.ts";
 import { MIN_PLAYERS, type PlayerView, type Seat, type TurnLog } from "../src/protocol.ts";
 
@@ -17,67 +18,85 @@ export class RoomError extends Error {
   }
 }
 
-interface Member {
+export interface Member {
   id: PlayerId;
   name: string;
   token: string;
+  placeholder: boolean;
 }
 
-type RoomListener = () => void;
-
-export class Room {
+export interface RoomState {
   code: string;
   debug: boolean;
-  host: PlayerId = 0;
-  options: GameOptions = { bidding: false, clanPowers: true };
-  private members: Member[] = [];
-  private game: GameState | null = null;
-  private plans = new Map<PlayerId, Plan>();
-  private log: TurnLog[] = [];
-  private listeners = new Set<RoomListener>();
+  host: PlayerId;
+  options: GameOptions;
+  members: Member[];
+  game: GameState | null;
+  plans: { [player: PlayerId]: Plan };
+  log: TurnLog[];
+}
+
+export function newRoomState(code: string, debug: boolean): RoomState {
+  return {
+    code,
+    debug,
+    host: 0,
+    options: { bidding: false, clanPowers: true },
+    members: [],
+    game: null,
+    plans: {},
+    log: [],
+  };
+}
+
+export class Room {
+  state: RoomState;
   private newToken: () => string;
 
-  constructor(code: string, debug: boolean, newToken: () => string) {
-    this.code = code;
-    this.debug = debug;
+  constructor(state: RoomState, newToken: () => string) {
+    this.state = state;
     this.newToken = newToken;
   }
 
+  get code(): string {
+    return this.state.code;
+  }
+
   get started(): boolean {
-    return this.game !== null;
+    return this.state.game !== null;
   }
 
-  onChange(listener: RoomListener): () => void {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  }
-
-  join(name: string): Member {
+  join(name: string, placeholder = false): Member {
+    const { members } = this.state;
     if (this.started) {
       throw new RoomError(409, "The game has already started");
     }
-    if (this.members.length >= MAX_PLAYERS) {
+    if (members.length >= MAX_PLAYERS) {
       throw new RoomError(409, "The lobby is full");
     }
-    const member = { id: this.members.length, name: cleanName(name, this.members.length), token: this.newToken() };
-    this.members.push(member);
-    this.notify();
+    const member = { id: members.length, name: cleanName(name, members.length), token: this.newToken(), placeholder };
+    members.push(member);
     return member;
   }
 
   actor(token: string, as?: PlayerId): PlayerId {
-    const member = this.members.find((candidate) => candidate.token === token);
+    const { members, debug, host } = this.state;
+    const member = members.find((candidate) => candidate.token === token);
     if (member === undefined) {
       throw new RoomError(403, "Unknown player");
     }
     if (as === undefined || as === member.id) {
       return member.id;
     }
-    if (!this.debug || member.id !== this.host) {
+    if (!debug || member.id !== host) {
       throw new RoomError(403, "Only the host can play other seats in debug mode");
     }
-    if (!this.members.some(({ id }) => id === as)) {
+    const seat = members.find(({ id }) => id === as);
+    if (seat === undefined) {
       throw new RoomError(404, "Unknown seat");
+    }
+    if (!seat.placeholder) {
+      throw new RoomError(403, "This seat belongs to another player");
     }
     return as;
   }
@@ -86,15 +105,14 @@ export class Room {
     this.requireHost(token);
     this.requireLobby();
     if (typeof options.clanPowers === "boolean") {
-      this.options = { ...this.options, clanPowers: options.clanPowers };
+      this.state.options = { ...this.state.options, clanPowers: options.clanPowers };
     }
-    this.notify();
   }
 
   start(token: string) {
     this.requireHost(token);
     this.requireLobby();
-    if (this.members.length < MIN_PLAYERS) {
+    if (this.state.members.length < MIN_PLAYERS) {
       throw new RoomError(409, `At least ${MIN_PLAYERS} players are needed`);
     }
     this.newGame();
@@ -106,30 +124,30 @@ export class Room {
     if (game.finished) {
       throw new RoomError(409, "The game is over");
     }
-    if (this.plans.has(player)) {
+    if (this.state.plans[player] !== undefined) {
       throw new RoomError(409, "The plan is already submitted");
     }
     const errors = planErrors(game, game.players[player], plan);
     if (errors.length > 0) {
       throw new RoomError(422, errors.join(", "));
     }
-    this.plans.set(player, plan);
-    if (this.plans.size === game.players.length) {
+    this.state.plans[player] = isPassing(plan) ? emptyPlan() : plan;
+    if (Object.keys(this.state.plans).length === game.players.length) {
       this.resolve(game);
     }
-    this.notify();
   }
 
   edit(token: string, as: PlayerId | undefined) {
     const player = this.actor(token, as);
-    this.requireGame();
-    this.plans.delete(player);
-    this.notify();
+    if (this.requireGame().finished) {
+      throw new RoomError(409, "The game is over");
+    }
+    delete this.state.plans[player];
   }
 
   addPlayer(token: string) {
     this.requireDebugHost(token);
-    this.join(`Player ${this.members.length + 1}`);
+    this.join(`Player ${this.state.members.length + 1}`, true);
   }
 
   restart(token: string) {
@@ -140,26 +158,26 @@ export class Room {
 
   backToLobby(token: string) {
     this.requireDebugHost(token);
-    this.game = null;
-    this.plans.clear();
-    this.log = [];
-    this.notify();
+    this.state.game = null;
+    this.state.plans = {};
+    this.state.log = [];
   }
 
   view(player: PlayerId): PlayerView {
-    const seats: Seat[] = this.members.map((member) => ({
+    const { code, host, debug, options, members, game, plans, log } = this.state;
+    const seats: Seat[] = members.map((member) => ({
       id: member.id,
       name: member.name,
       clan: clanOf(member.id),
-      submitted: this.plans.has(member.id),
+      submitted: plans[member.id] !== undefined,
+      placeholder: member.placeholder,
     }));
-    const game = this.game;
     return {
-      code: this.code,
+      code,
       you: player,
-      host: this.host,
-      debug: this.debug,
-      options: this.options,
+      host,
+      debug,
+      options,
       seats,
       match:
         game === null
@@ -171,36 +189,36 @@ export class Room {
               winner: game.winner,
               finished: game.finished,
               chao: game.players[player].chao,
-              plan: this.plans.get(player) ?? null,
-              log: this.log,
+              plan: plans[player] ?? null,
+              log,
             },
     };
   }
 
   private newGame() {
-    const players = this.members.map(({ id }) => id);
-    this.game = createGame(createDefaultBoard(players), players.map(clanOf), this.options);
-    this.plans.clear();
-    this.log = [];
-    this.notify();
+    const players = this.state.members.map(({ id }) => id);
+    this.state.game = createGame(createDefaultBoard(players), players.map(clanOf), this.state.options);
+    this.state.plans = {};
+    this.state.log = [];
   }
 
   private resolve(game: GameState) {
-    const { state, events } = resolveTurn(game, this.plans);
-    this.log = [...this.log, { turn: game.turn, events }];
-    this.game = state;
-    this.plans.clear();
+    const plans = new Map(Object.entries(this.state.plans).map(([player, plan]) => [Number(player), plan]));
+    const { state, events } = resolveTurn(game, plans);
+    this.state.log = [...this.state.log, { turn: game.turn, events }];
+    this.state.game = state;
+    this.state.plans = {};
   }
 
   private requireHost(token: string) {
-    if (this.actor(token) !== this.host) {
+    if (this.actor(token) !== this.state.host) {
       throw new RoomError(403, "Only the host can do that");
     }
   }
 
   private requireDebugHost(token: string) {
     this.requireHost(token);
-    if (!this.debug) {
+    if (!this.state.debug) {
       throw new RoomError(403, "Debug mode is off");
     }
   }
@@ -212,14 +230,10 @@ export class Room {
   }
 
   private requireGame(): GameState {
-    if (this.game === null) {
+    if (this.state.game === null) {
       throw new RoomError(409, "The game has not started");
     }
-    return this.game;
-  }
-
-  private notify() {
-    this.listeners.forEach((listener) => listener());
+    return this.state.game;
   }
 }
 
