@@ -1,0 +1,11 @@
+services:
+  yuan:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${YUAN_PORT:-8787}:8787"
+    volumes:
+      - yuan-data:/data
+
+volumes:
+  yuan-data:
