@@ -61,13 +61,17 @@ export class PlanCard {
   private row(row: PlanRow, hasTarget: boolean, locked: boolean): HTMLElement {
     const root = element("div", "plan-row");
     const label = element("div", "plan-row__label");
+    const blocker = row.level === null ? null : row.blockers[row.level];
     label.append(element("span", "plan-row__type", row.type), element("span", "plan-row__kind", kindText(row, hasTarget)));
-    label.classList.toggle("plan-row__label--invalid", hasTarget && row.level !== null && row.kind === null);
+    label.classList.toggle("plan-row__label--invalid", hasTarget && row.level !== null && (row.kind === null || blocker !== null));
     root.append(label);
     for (const level of ACTION_LEVELS) {
       const button = element("button", "plan-level");
-      button.disabled = locked;
+      const reason = row.blockers[level];
+      button.disabled = locked || (reason !== null && row.level !== level);
+      button.title = reason ?? "";
       button.classList.toggle("plan-level--active", row.level === level);
+      button.classList.toggle("plan-level--blocked", reason !== null);
       button.append(element("span", "plan-level__roman", ROMAN[level]), element("span", "plan-level__cost", `${row.costs[level]}₵`));
       button.addEventListener("click", () => this.handlers.onLevel(row.type, level));
       root.append(button);
@@ -80,8 +84,17 @@ function kindText(row: PlanRow, hasTarget: boolean): string {
   if (!hasTarget) {
     return "";
   }
-  if (row.kind === null) {
-    return "not possible on this target";
+  const selected = row.level === null ? null : row.blockers[row.level];
+  if (selected !== null) {
+    return selected;
   }
-  return row.conditional ? `${row.kind} if the attack succeeds` : row.kind;
+  const blocked = ACTION_LEVELS.filter((level) => row.blockers[level] !== null);
+  if (row.kind === null) {
+    return blocked.length > 0 ? row.blockers[blocked[0]]! : "not possible on this target";
+  }
+  const kind = row.conditional ? `${row.kind} if the attack succeeds` : row.kind;
+  if (blocked.length === 0) {
+    return kind;
+  }
+  return `${kind} · ${blocked.map((level) => ROMAN[level]).join("/")}: ${row.blockers[blocked[0]]}`;
 }

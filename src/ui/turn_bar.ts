@@ -1,13 +1,14 @@
 import "./turn_bar.css";
 import { readableOnDark } from "./color.ts";
 import { element } from "./dom.ts";
-import { GameSettings, type GameSettingsValues } from "./game_settings.ts";
 import type { LogPart } from "./turn_text.ts";
 
 export interface TurnBarSeat {
   label: string;
+  clan: string;
   color: string;
   submitted: boolean;
+  you: boolean;
 }
 
 export interface TurnBarData {
@@ -16,43 +17,39 @@ export interface TurnBarData {
   templeTarget: number;
   eruption: boolean;
   seats: TurnBarSeat[];
-  canResolve: boolean;
+  status: string;
   winner: string | null;
-  settings: GameSettingsValues;
 }
 
-export interface TurnBarHandlers {
-  onResolve: () => void;
-  onNewGame: (values: GameSettingsValues) => void;
+export interface TurnLogEntry {
+  turn: number;
+  lines: LogPart[][];
 }
 
 export class TurnBar {
   root: HTMLElement;
   private title: HTMLElement;
   private seats: HTMLElement;
-  private resolveButton: HTMLButtonElement;
+  private status: HTMLElement;
   private logButton: HTMLButtonElement;
   private log: HTMLElement;
   private logList: HTMLElement;
-  private settings: GameSettings;
 
-  constructor(container: HTMLElement, handlers: TurnBarHandlers) {
+  constructor(container: HTMLElement) {
     this.root = element("div", "turn-bar");
     const bar = element("div", "turn-bar__bar");
     this.title = element("div", "turn-bar__title");
     this.seats = element("div", "turn-bar__seats");
-    this.resolveButton = element("button", "player-button", "Resolve turn");
-    this.resolveButton.addEventListener("click", handlers.onResolve);
+    this.status = element("span", "turn-bar__hint turn-bar__status");
     this.logButton = element("button", "player-button player-button--ghost", "Log");
     this.logButton.addEventListener("click", () => (this.log.hidden = !this.log.hidden));
-    this.settings = new GameSettings(handlers.onNewGame);
-    bar.append(this.title, this.seats, this.resolveButton, this.logButton, this.settings.button);
+    bar.append(this.title, this.seats, this.status, this.logButton);
 
     this.log = element("section", "turn-log");
     this.log.hidden = true;
     this.logList = element("ol", "turn-log__list");
     this.log.append(this.logList);
-    this.root.append(bar, this.settings.panel, this.log);
+    this.root.append(bar, this.log);
     container.appendChild(this.root);
   }
 
@@ -63,25 +60,32 @@ export class TurnBar {
     );
     this.seats.replaceChildren(
       ...data.seats.map((seat) => {
-        const node = element("span", `turn-bar__seat${seat.submitted ? " turn-bar__seat--ready" : ""}`, seat.label);
+        const classes = ["turn-bar__seat", seat.submitted ? "turn-bar__seat--ready" : "", seat.you ? "turn-bar__seat--you" : ""];
+        const node = element("span", classes.filter(Boolean).join(" "), seat.label);
         node.style.setProperty("--seat-color", seat.color);
-        node.title = seat.submitted ? "Plan submitted" : "Planning";
+        node.title = `${seat.clan} · ${seat.submitted ? "Plan submitted" : "Planning"}`;
         return node;
       }),
     );
-    this.resolveButton.disabled = !data.canResolve;
-    this.resolveButton.hidden = data.winner !== null;
+    this.status.textContent = data.status;
     this.logButton.hidden = this.logList.childElementCount === 0;
-    this.settings.update(data.settings);
   }
 
-  clearLog() {
-    this.logList.replaceChildren();
-    this.log.hidden = true;
-    this.logButton.hidden = true;
+  setLog(entries: TurnLogEntry[], colorOf: (player: number) => string, reveal: boolean) {
+    this.logList.replaceChildren(...entries.map((entry) => this.entry(entry, colorOf)).reverse());
+    this.logButton.hidden = entries.length === 0;
+    if (entries.length === 0) {
+      this.log.hidden = true;
+    } else if (reveal) {
+      this.log.hidden = false;
+    }
   }
 
-  showLog(turn: number, lines: LogPart[][], colorOf: (player: number) => string) {
+  dispose() {
+    this.root.remove();
+  }
+
+  private entry({ turn, lines }: TurnLogEntry, colorOf: (player: number) => string): HTMLElement {
     const entry = element("li", "turn-log__turn");
     const list = element("ul", "turn-log__events");
     list.append(
@@ -101,12 +105,6 @@ export class TurnBar {
       }),
     );
     entry.append(element("h4", "turn-log__heading", `Turn ${turn}`), list);
-    this.logList.prepend(entry);
-    this.logButton.hidden = false;
-    this.log.hidden = false;
-  }
-
-  dispose() {
-    this.root.remove();
+    return entry;
   }
 }

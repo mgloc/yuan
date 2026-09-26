@@ -12,15 +12,14 @@ import { adjacentClans } from "../tile/checks.ts";
 import { adjacentProvinces } from "../tile/adjacency.ts";
 import { coordKey, provinceAt } from "../tile/coords.ts";
 import { groupHasCity, groupOf } from "../tile/groups.ts";
-import { isFree, ownedProvinces } from "../tile/ownership.ts";
-import { connectedWithin } from "../tile/water.ts";
+import { isFree } from "../tile/ownership.ts";
+import { canColonise } from "../tile/reach.ts";
 import { activeActions, playerOf, type ActiveAction, type TurnContext } from "./context.ts";
 import { reserve } from "./pools.ts";
 
 const DEVELOPMENT_INCOME_LEVEL = 2;
 const TEMPLE_LEVEL = 3;
 const ANYWHERE_LEVEL = 3;
-const XIANGI_WATER_LIMIT = 2;
 
 interface Claim {
   coord: Coord;
@@ -50,7 +49,7 @@ export function resolveDevelopment(context: TurnContext) {
     const { order, level, target, province } = action;
     const player = order.player;
     if (province.owner === null) {
-      if (level < ANYWHERE_LEVEL && !reaches(context, player, target)) {
+      if (level < ANYWHERE_LEVEL && !canColonise(context.state, player, target)) {
         fail(context, action, "not adjacent or connected to your Provinces");
         continue;
       }
@@ -81,18 +80,6 @@ export function resolveDevelopment(context: TurnContext) {
   placeClaims(context, claims, targets);
   urbanise(context, colonisations);
   buildTemples(context, temples);
-}
-
-function reaches(context: TurnContext, player: PlayerId, target: Coord): boolean {
-  const state = context.state;
-  const xiangi = state.options.clanPowers && playerOf(context, player).clan === Clan.Xiangi;
-  const waterLimit = xiangi ? XIANGI_WATER_LIMIT : Infinity;
-  const key = coordKey(target);
-  return ownedProvinces(state, player).some((from) =>
-    [...adjacentProvinces(state, from), ...connectedWithin(state, from, waterLimit)].some(
-      (coord) => coordKey(coord) === key,
-    ),
-  );
 }
 
 function freeAround(context: TurnContext, coords: Coord[]): Coord[] {

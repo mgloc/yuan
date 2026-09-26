@@ -1,4 +1,4 @@
-import type { Coord, GameState } from "../game_types.ts";
+import type { Coord, GameInfo } from "../game_types.ts";
 import type { TilePicker } from "../rendering/picking.ts";
 import type { InfoPanel } from "../ui/info_panel.ts";
 import { tileInfo } from "../ui/tile_info.ts";
@@ -10,13 +10,13 @@ import type { Selection } from "./selection.ts";
 const SELECTION_LAYER = "selection";
 
 export class TileSelectionController {
-  private game: Observable<GameState>;
+  private game: Observable<GameInfo>;
   private highlights: HighlightLayers;
   private panel: InfoPanel;
   private selection: Selection;
   private unsubscribers: (() => void)[] = [];
 
-  constructor(game: Observable<GameState>, highlights: HighlightLayers, picker: TilePicker, selection: Selection, panel: InfoPanel) {
+  constructor(game: Observable<GameInfo>, highlights: HighlightLayers, picker: TilePicker, selection: Selection, panel: InfoPanel) {
     this.game = game;
     this.highlights = highlights;
     this.panel = panel;

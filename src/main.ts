@@ -1,53 +1,115 @@
-import { Renderer } from "./rendering/renderer.ts";
-import { TileGridView } from "./rendering/views/tile_grid_view.ts";
-import { TilePicker } from "./rendering/picking.ts";
-import { Timer } from "./core/timer.ts";
-import { createTestBoard, TEST_CLANS } from "./game/test_board.ts";
-import { createGame } from "./game/setup.ts";
-import { ProceduralPieceFactory } from "./rendering/pieces/procedural_factory.ts";
-import { CLAN_COLORS } from "./rendering/clan_colors.ts";
-import { Selection } from "./interaction/selection.ts";
-import { TileSelectionController } from "./interaction/tile_selection_controller.ts";
-import { HighlightLayers } from "./interaction/highlight_layers.ts";
-import { Observable } from "./interaction/observable.ts";
-import { Plans } from "./interaction/plans.ts";
-import { PlayerBoardController } from "./interaction/player_board_controller.ts";
-import { HotseatController } from "./interaction/hotseat_controller.ts";
-import { TurnController } from "./interaction/turn_controller.ts";
-import { InfoPanel } from "./ui/info_panel.ts";
-import type { GameOptions, GameState, PlayerId } from "./game_types.ts";
+import "./ui/screen.css";
+import { MAX_PLAYERS } from "./game/default_map.ts";
+import { GameScreen } from "./game_screen.ts";
+import { createRoom, joinRoom } from "./net/api.ts";
+import { GameClient } from "./net/game_client.ts";
+import { forgetSession, loadName, loadSession, saveName, saveSession } from "./net/session.ts";
+import { MIN_PLAYERS, type PlayerView, type Session } from "./protocol.ts";
+import { clanCssColor } from "./rendering/clan_colors.ts";
+import { Landing } from "./ui/landing.ts";
+import { Lobby } from "./ui/lobby.ts";
+import { Toast } from "./ui/toast.ts";
 
-const width = window.innerWidth,
-  height = window.innerHeight;
+const container = document.body;
+const toast = new Toast(container);
 
-const renderer = new Renderer(width, height, document.body);
+let client: GameClient | null = null;
+let landing: Landing | null = null;
+let lobby: Lobby | null = null;
+let game: GameScreen | null = null;
 
-const newGame = (options: GameOptions) => createGame(createTestBoard(), TEST_CLANS, options);
-const game = new Observable<GameState>(newGame({ bidding: false, clanPowers: true }));
-const clanColor = (player: PlayerId) => CLAN_COLORS[game.get().players.find(({ id }) => id === player)!.clan];
-const cssColor = (player: PlayerId) => `#${clanColor(player).toString(16).padStart(6, "0")}`;
-
-const grid = new TileGridView(renderer.scene, game.get().tiles, new ProceduralPieceFactory(), renderer.sun.position);
-grid.updateProvinces(game.get().provinces, clanColor);
-game.onChange((state) => grid.updateProvinces(state.provinces, clanColor));
-
-const picker = new TilePicker(renderer, grid.root);
-const highlights = new HighlightLayers(grid);
-const selection = new Selection();
-const plans = new Plans();
-new TileSelectionController(game, highlights, picker, selection, new InfoPanel(document.body));
-
-const activePlayer = new Observable<PlayerId>(game.get().players[0].id);
-new PlayerBoardController(document.body, game, activePlayer, plans, selection, highlights, cssColor);
-new TurnController(document.body, game, plans, cssColor, newGame);
-if (import.meta.env.DEV) {
-  new HotseatController(document.body, game.get().players, activePlayer, cssColor);
+function clear() {
+  client?.close();
+  client = null;
+  landing?.dispose();
+  landing = null;
+  lobby?.dispose();
+  lobby = null;
+  game?.dispose();
+  game = null;
 }
 
-const timer = new Timer();
-function loop() {
-  requestAnimationFrame(loop);
-  grid.update(timer.tick());
-  renderer.render();
+function showLanding(code: string, error: string) {
+  clear();
+  history.replaceState(null, "", code === "" ? location.pathname : `?game=${code}`);
+  const screen = new Landing(
+    container,
+    {
+      onCreate: (name, debug) => request(screen, name, () => createRoom({ name, debug })),
+      onJoin: (name, code) =>
+        code === "" ? screen.showError("Enter a game code") : request(screen, name, () => joinRoom(code, { name })),
+    },
+    { name: loadName(), code, error },
+  );
+  landing = screen;
 }
-loop();
+
+async function request(screen: Landing, name: string, send: () => Promise<Session>) {
+  saveName(name.trim());
+  screen.setBusy(true);
+  try {
+    enter(await send());
+  } catch (error) {
+    screen.showError((error as Error).message);
+    screen.setBusy(false);
+  }
+}
+
+function enter(session: Session) {
+  clear();
+  saveSession(session);
+  history.replaceState(null, "", `?game=${session.code}`);
+  const current = new GameClient(session, {
+    onGone: () => {
+      forgetSession(session.code);
+      showLanding(session.code, "This game is no longer available");
+    },
+    onError: (message) => toast.show(message),
+  });
+  current.view.onChange((view) => view !== null && client === current && route(current, view));
+  client = current;
+}
+
+function route(current: GameClient, view: PlayerView) {
+  if (view.match === null) {
+    game?.dispose();
+    game = null;
+    lobby ??= new Lobby(container, {
+      onClanPowers: (enabled) => current.setOptions(enabled),
+      onLaunch: () => current.start(),
+      onAddPlayer: () => current.addPlayer(),
+      onCopyLink: () => navigator.clipboard?.writeText(`${location.origin}${location.pathname}?game=${view.code}`),
+    });
+    lobby.update({
+      code: view.code,
+      seats: view.seats.map((seat) => ({
+        name: seat.name,
+        clan: seat.clan,
+        color: clanCssColor(seat.clan),
+        host: seat.id === view.host,
+        you: seat.id === current.session.player,
+      })),
+      maxPlayers: MAX_PLAYERS,
+      minPlayers: MIN_PLAYERS,
+      isHost: current.isHost,
+      debug: view.debug,
+      clanPowers: view.options.clanPowers,
+    });
+    return;
+  }
+  lobby?.dispose();
+  lobby = null;
+  if (game === null) {
+    game = new GameScreen(container, current, view);
+  } else {
+    game.update(view);
+  }
+}
+
+const code = new URLSearchParams(location.search).get("game")?.trim().toUpperCase() ?? "";
+const session = code === "" ? null : loadSession(code);
+if (session === null) {
+  showLanding(code, "");
+} else {
+  enter(session);
+}

@@ -229,7 +229,20 @@ describe("turn", () => {
 
   it("rejects plans that cannot be paid", () => {
     const game = testGame(["R"], { provinces: { "0,0": city(0) }, players: [{ chao: 3 }, {}] });
-    expect(planErrors(game, 0, plan(at(0), { Development: 3 }))).toContain("Not enough Chão");
-    expect(planErrors(game, 0, plan(at(0), { Development: 1 }))).toEqual([]);
+    expect(planErrors(game, game.players[0], plan(at(0), { Development: 3 }))).toContain("Not enough Chão");
+    expect(planErrors(game, game.players[0], plan(at(0), { Development: 1 }))).toEqual([]);
+  });
+
+  it("rejects actions that cannot succeed on the target", () => {
+    const game = testGame(["R F F M R H"], {
+      provinces: { "0,0": city(0), "1,0": village(0), "3,0": city(1), "5,0": village(1) },
+    });
+    const errors = (target: number, actions: Parameters<typeof plan>[1]) => planErrors(game, game.players[0], plan(at(target), actions));
+    expect(errors(4, { Development: 1 })).toEqual(["Development: Not adjacent or connected to your Provinces"]);
+    expect(errors(4, { Development: 3 })).toEqual([]);
+    expect(errors(3, { Development: 1 })).toEqual(["Development: Can't develop an enemy Province"]);
+    expect(errors(5, { Militarisation: 1 })).toEqual(["Militarisation: No Army adjacent or connected"]);
+    expect(errors(1, { Militarisation: 1 })).toEqual(["Militarisation: Recruitment needs a City"]);
+    expect(errors(2, { Fortification: 1 })).toEqual(["Fortification: Not your Province"]);
   });
 });

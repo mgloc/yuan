@@ -1,0 +1,26 @@
+.player-button {
+  padding: 5px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  background: var(--accent);
+  color: #1b1b1b;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.player-button--ghost {
+  background: transparent;
+  color: var(--accent);
+}
+
+.player-button:disabled {
+  border-color: #4a5058;
+  background: transparent;
+  color: #6c737b;
+  cursor: default;
+}
+
+.player-button[hidden] {
+  display: none;
+}

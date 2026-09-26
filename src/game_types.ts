@@ -132,6 +132,16 @@ export interface GameState {
 
 export type Board = Pick<GameState, "tiles" | "provinces">;
 
+export type PublicPlayer = Pick<Player, "id" | "clan">;
+
+export interface GameInfo extends Board {
+  turn: number;
+  options: GameOptions;
+  players: readonly PublicPlayer[];
+  winner: PlayerId | null;
+  finished: boolean;
+}
+
 export const STARTING_CHAO = 4;
 export const STARTING_CHAO_WITH_BIDDING = 6;
 export const PASS_INCOME = 6;

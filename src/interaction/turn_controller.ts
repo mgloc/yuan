@@ -1,79 +1,70 @@
-import { LAST_TURN, VOLCANO_ERUPTION_TURNS, templeTarget, type GameOptions, type GameState, type PlayerId } from "../game_types.ts";
-import { resolveTurn } from "../game/turn/resolve.ts";
+import { LAST_TURN, VOLCANO_ERUPTION_TURNS, templeTarget, type GameInfo, type PlayerId } from "../game_types.ts";
+import type { PlayerView } from "../protocol.ts";
 import { TurnBar } from "../ui/turn_bar.ts";
 import { eventText } from "../ui/turn_text.ts";
 import type { Observable } from "./observable.ts";
-import type { Plans } from "./plans.ts";
 
 export class TurnController {
-  private game: Observable<GameState>;
-  private plans: Plans;
+  private view: Observable<PlayerView>;
+  private game: Observable<GameInfo>;
   private colorOf: (player: PlayerId) => string;
-  private newGame: (options: GameOptions) => GameState;
-  private view: TurnBar;
-  private unsubscribers: (() => void)[];
+  private bar: TurnBar;
+  private shownTurns = -1;
+  private unsubscribe: () => void;
 
-  constructor(
-    container: HTMLElement,
-    game: Observable<GameState>,
-    plans: Plans,
-    colorOf: (player: PlayerId) => string,
-    newGame: (options: GameOptions) => GameState,
-  ) {
+  constructor(container: HTMLElement, view: Observable<PlayerView>, game: Observable<GameInfo>, colorOf: (player: PlayerId) => string) {
+    this.view = view;
     this.game = game;
-    this.plans = plans;
     this.colorOf = colorOf;
-    this.newGame = newGame;
-    this.view = new TurnBar(container, {
-      onResolve: () => this.resolve(),
-      onNewGame: ({ clanPowers }) => this.restart({ ...this.game.get().options, clanPowers }),
-    });
-    this.unsubscribers = [game.onChange(() => this.render()), plans.onChange(() => this.render())];
+    this.bar = new TurnBar(container);
+    this.unsubscribe = game.onChange(() => this.render());
     this.render();
   }
 
   dispose() {
-    this.unsubscribers.forEach((unsubscribe) => unsubscribe());
-    this.view.dispose();
-  }
-
-  private allSubmitted(): boolean {
-    return this.game.get().players.every((player) => this.plans.isSubmitted(player.id));
-  }
-
-  private resolve() {
-    const before = this.game.get();
-    if (before.finished || !this.allSubmitted()) {
-      return;
-    }
-    const { state, events } = resolveTurn(before, this.plans.all());
-    this.view.showLog(before.turn, events.map((event) => eventText(state, event)), this.colorOf);
-    this.game.set(state);
-    this.plans.clear();
-  }
-
-  private restart(options: GameOptions) {
-    this.plans.clear();
-    this.view.clearLog();
-    this.game.set(this.newGame(options));
+    this.unsubscribe();
+    this.bar.dispose();
   }
 
   private render() {
+    const view = this.view.get();
     const game = this.game.get();
-    const winner = game.players.find(({ id }) => id === game.winner);
-    this.view.update({
+    const log = view.match?.log ?? [];
+    if (log.length !== this.shownTurns) {
+      const entries = log.map(({ turn, events }) => ({ turn, lines: events.map((event) => eventText(game, event)) }));
+      this.bar.setLog(entries, this.colorOf, this.shownTurns >= 0 && log.length > this.shownTurns);
+      this.shownTurns = log.length;
+    }
+
+    const winner = view.seats.find(({ id }) => id === game.winner);
+    this.bar.update({
       turn: game.turn,
       lastTurn: LAST_TURN,
       templeTarget: templeTarget(game.turn),
       eruption: VOLCANO_ERUPTION_TURNS.has(game.turn),
-      seats: game.players.map((player) => ({
-        label: player.clan,
-        color: this.colorOf(player.id),
-        submitted: this.plans.isSubmitted(player.id),
+      seats: view.seats.map((seat) => ({
+        label: seat.name,
+        clan: seat.clan,
+        color: this.colorOf(seat.id),
+        submitted: seat.submitted,
+        you: seat.id === view.you,
       })),
-      canResolve: !game.finished && this.allSubmitted(),
-      winner: winner?.clan ?? null,
-      settings: { clanPowers: game.options.clanPowers },
+      status: this.status(view, game),
+      winner: winner === undefined ? null : `${winner.name} (${winner.clan})`,
     });
+  }
+
+  private status(view: PlayerView, game: GameInfo): string {
+    if (game.finished) {
+      return "Game over";
+    }
+    const waiting = view.seats.filter(({ submitted }) => !submitted);
+    if (waiting.length === 0) {
+      return "Resolving…";
+    }
+    if (!waiting.some(({ id }) => id === view.you)) {
+      return `Waiting for ${waiting.map(({ name }) => name).join(", ")}`;
+    }
+    return "Plan your turn";
   }
 }

@@ -1,77 +1,93 @@
-import type { GameState, PlayerId } from "../game_types.ts";
+import type { GameInfo, Plan, PlayerId } from "../game_types.ts";
+import { emptyPlan } from "../game/plan/plan.ts";
 import { coordKey } from "../game/tile/coords.ts";
+import type { PlayerView } from "../protocol.ts";
 import { Highlight } from "../rendering/highlight.ts";
 import { PlayerBoard } from "../ui/player_board.ts";
 import { playerBoardData } from "../ui/player_board_data.ts";
 import type { HighlightLayers } from "./highlight_layers.ts";
 import type { Observable } from "./observable.ts";
-import type { Plans } from "./plans.ts";
+import type { PlanDraft } from "./plan_draft.ts";
 import type { Selection } from "./selection.ts";
 
 const TARGET_LAYER = "target";
 
+export interface PlanActions {
+  submit: (plan: Plan) => void;
+  edit: () => void;
+}
+
 export class PlayerBoardController {
-  private game: Observable<GameState>;
-  private activePlayer: Observable<PlayerId>;
-  private plans: Plans;
+  private view: Observable<PlayerView>;
+  private game: Observable<GameInfo>;
+  private draft: PlanDraft;
   private selection: Selection;
   private highlights: HighlightLayers;
   private colorOf: (player: PlayerId) => string;
-  private view: PlayerBoard;
+  private board: PlayerBoard;
   private unsubscribers: (() => void)[];
 
   constructor(
     container: HTMLElement,
-    game: Observable<GameState>,
-    activePlayer: Observable<PlayerId>,
-    plans: Plans,
+    view: Observable<PlayerView>,
+    game: Observable<GameInfo>,
+    draft: PlanDraft,
     selection: Selection,
     highlights: HighlightLayers,
     colorOf: (player: PlayerId) => string,
+    actions: PlanActions,
   ) {
+    this.view = view;
     this.game = game;
-    this.activePlayer = activePlayer;
-    this.plans = plans;
+    this.draft = draft;
     this.selection = selection;
     this.highlights = highlights;
     this.colorOf = colorOf;
 
-    this.view = new PlayerBoard(container, {
-      onTarget: () => plans.setTarget(activePlayer.get(), selection.get()),
-      onClear: () => plans.setTarget(activePlayer.get(), null),
-      onLevel: (type, level) => plans.toggleLevel(activePlayer.get(), type, level),
-      onPass: () => plans.pass(activePlayer.get()),
-      onSubmit: () => plans.submit(activePlayer.get()),
-      onEdit: () => plans.edit(activePlayer.get()),
+    this.board = new PlayerBoard(container, {
+      onTarget: () => draft.setTarget(selection.get()),
+      onClear: () => draft.setTarget(null),
+      onLevel: (type, level) => draft.toggleLevel(type, level),
+      onPass: () => actions.submit(emptyPlan()),
+      onSubmit: () => actions.submit(draft.get()),
+      onEdit: () => {
+        const submitted = view.get().match?.plan;
+        if (submitted) {
+          draft.set(submitted);
+        }
+        actions.edit();
+      },
     });
 
     this.unsubscribers = [
       game.onChange(() => this.render()),
-      activePlayer.onChange(() => this.render()),
-      plans.onChange((player) => player === activePlayer.get() && this.render()),
+      draft.onChange(() => this.render()),
       selection.onChange(() => this.render()),
     ];
     this.render();
   }
 
+  top(): number {
+    return this.board.root.getBoundingClientRect().top;
+  }
+
   dispose() {
     this.unsubscribers.forEach((unsubscribe) => unsubscribe());
     this.highlights.set(TARGET_LAYER, new Map());
-    this.view.dispose();
+    this.board.dispose();
   }
 
   private render() {
-    const game = this.game.get();
-    const id = this.activePlayer.get();
-    const player = game.players.find((candidate) => candidate.id === id);
-    if (player === undefined) {
+    const view = this.view.get();
+    const seat = view.seats.find(({ id }) => id === view.you);
+    if (view.match === null || seat === undefined) {
       return;
     }
-    const plan = this.plans.get(id);
-    this.view.update(playerBoardData(game, player, plan, this.selection.get(), this.colorOf(id), this.plans.isSubmitted(id)));
-    this.highlights.set(
-      TARGET_LAYER,
-      new Map(plan.target === null ? [] : [[coordKey(plan.target), Highlight.Target]]),
+    const plan = seat.submitted && view.match.plan !== null ? view.match.plan : this.draft.get();
+    const player = { id: seat.id, clan: seat.clan, chao: view.match.chao };
+    this.board.update(
+      playerBoardData(this.game.get(), player, plan, this.selection.get(), this.colorOf(seat.id), seat.submitted),
     );
+    this.highlights.set(TARGET_LAYER, new Map(plan.target === null ? [] : [[coordKey(plan.target), Highlight.Target]]));
   }
 }

@@ -2,6 +2,8 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 const BACKGROUND_COLOR = 0xece8df;
+const FRAME_TILT = THREE.MathUtils.degToRad(38);
+const FRAME_FILL = 0.94;
 
 export class Renderer {
   height: number;
@@ -63,13 +65,15 @@ export class Renderer {
       const axesHelper = new THREE.AxesHelper(10);
       this.scene.add(axesHelper);
 
-      window.addEventListener("keydown", (e) => {
-        if (e.key === "c") {
-          this.toggleDebugCamera();
-        }
-      });
+      window.addEventListener("keydown", this.onKeyDown);
     }
   }
+
+  private onKeyDown = (event: KeyboardEvent) => {
+    if (event.key === "c") {
+      this.toggleDebugCamera();
+    }
+  };
 
   toggleDebugCamera() {
     if (!this.debugCamera) {
@@ -91,6 +95,50 @@ export class Renderer {
       }
     }
     this.renderer.setSize(width, height);
+  }
+
+  frame(box: THREE.Box3, insets: { top: number; bottom: number }) {
+    const center = box.getCenter(new THREE.Vector3());
+    const direction = new THREE.Vector3(0, -Math.sin(FRAME_TILT), Math.cos(FRAME_TILT));
+    const available = { width: this.width * FRAME_FILL, height: Math.max(1, this.height - insets.top - insets.bottom) * FRAME_FILL };
+    this.camera.clearViewOffset();
+
+    let near = 1;
+    let far = 500;
+    for (let i = 0; i < 30; i++) {
+      const distance = (near + far) / 2;
+      const bounds = this.projectedBounds(box, center, direction, distance);
+      if (bounds.max.x - bounds.min.x <= available.width && bounds.max.y - bounds.min.y <= available.height) {
+        far = distance;
+      } else {
+        near = distance;
+      }
+    }
+
+    const bounds = this.projectedBounds(box, center, direction, far);
+    const offsetX = (bounds.min.x + bounds.max.x) / 2 - this.width / 2;
+    const offsetY = (bounds.min.y + bounds.max.y) / 2 - (insets.top + (this.height - insets.top - insets.bottom) / 2);
+    this.camera.setViewOffset(this.width, this.height, offsetX, offsetY, this.width, this.height);
+  }
+
+  private projectedBounds(box: THREE.Box3, center: THREE.Vector3, direction: THREE.Vector3, distance: number): THREE.Box2 {
+    this.camera.position.copy(center).addScaledVector(direction, distance);
+    this.camera.lookAt(center);
+    this.camera.updateMatrixWorld();
+    const bounds = new THREE.Box2();
+    const corner = new THREE.Vector3();
+    for (let i = 0; i < 8; i++) {
+      corner.set(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z).project(this.camera);
+      bounds.expandByPoint(new THREE.Vector2(((corner.x + 1) / 2) * this.width, ((1 - corner.y) / 2) * this.height));
+    }
+    return bounds;
+  }
+
+  dispose() {
+    window.removeEventListener("keydown", this.onKeyDown);
+    this.controls?.dispose();
+    this.renderer.dispose();
+    this.renderer.domElement.remove();
   }
 
   render() {

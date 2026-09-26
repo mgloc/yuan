@@ -4,7 +4,7 @@ import {
   INDESTRUCTIBLE_ADJACENT_DEFENSE,
   type Board,
   type Coord,
-  type GameState,
+  type GameInfo,
   type PlayerId,
 } from "../../game_types.ts";
 import { adjacentProvinces } from "../tile/adjacency.ts";
@@ -30,7 +30,7 @@ export function isIndestructible(board: Board, coord: Coord): boolean {
   return provinceAt(board, coord)?.ramparts === INDESTRUCTIBLE_RAMPARTS;
 }
 
-export function defenceOf(state: GameState, coord: Coord): number {
+export function defenceOf(state: GameInfo, coord: Coord): number {
   const province = provinceAt(state, coord);
   if (province === null || province.owner === null) {
     return 0;
@@ -49,7 +49,7 @@ export function defenceOf(state: GameState, coord: Coord): number {
   return defence;
 }
 
-export function armySources(state: GameState, player: PlayerId, target: Coord): Coord[] {
+export function armySources(state: GameInfo, player: PlayerId, target: Coord): Coord[] {
   const clan = state.players.find(({ id }) => id === player)?.clan;
   const powers = state.options.clanPowers;
   const waterLimit = powers && clan === Clan.Xiangi ? LIMITED_WATER_CELLS : Infinity;

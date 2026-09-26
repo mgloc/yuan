@@ -9,13 +9,14 @@ import {
   type ActionKind,
   type ActionLevel,
   type Coord,
-  type GameState,
+  type GameInfo,
   type Plan,
   type Player,
   type TileType,
 } from "../game_types.ts";
 import { actionCost, controlledTemples, resources } from "../game/plan/economy.ts";
 import { isPassing, planCost } from "../game/plan/plan.ts";
+import { planBlockers, type LevelBlockers } from "../game/plan/feasibility.ts";
 import { previewPlan } from "../game/plan/preview.ts";
 import { provinceAt, tileAt } from "../game/tile/coords.ts";
 import { planErrors } from "../game/turn/validation.ts";
@@ -35,6 +36,7 @@ export interface PlanRow {
   costs: Record<ActionLevel, number>;
   kind: ActionKind | null;
   conditional: boolean;
+  blockers: LevelBlockers;
 }
 
 export interface PlayerBoardData {
@@ -59,7 +61,7 @@ export interface PlayerBoardData {
 }
 
 export function playerBoardData(
-  game: GameState,
+  game: GameInfo,
   player: Player,
   plan: Plan,
   selection: Coord | null,
@@ -68,6 +70,7 @@ export function playerBoardData(
 ): PlayerBoardData {
   const counts = resources(game, player.id);
   const preview = previewPlan(game, player.id, plan);
+  const blockers = planBlockers(game, player.id, plan);
   const total = planCost(plan, counts);
   const passing = isPassing(plan);
 
@@ -87,13 +90,14 @@ export function playerBoardData(
     finished: game.finished,
     plan: {
       submitted,
-      errors: game.finished ? ["The game is over"] : planErrors(game, player.id, plan),
+      errors: game.finished ? ["The game is over"] : planErrors(game, player, plan),
       rows: Object.values(ActionType).map((type) => ({
         type,
         level: plan.actions[type],
         costs: Object.fromEntries(ACTION_LEVELS.map((level) => [level, actionCost(level, counts[type])])) as Record<ActionLevel, number>,
         kind: preview[type].kind,
         conditional: preview[type].conditional,
+        blockers: blockers[type],
       })),
       total,
       affordable: total <= player.chao,
@@ -104,14 +108,14 @@ export function playerBoardData(
   };
 }
 
-function canTarget(game: GameState, plan: Plan, selection: Coord | null): boolean {
+function canTarget(game: GameInfo, plan: Plan, selection: Coord | null): boolean {
   if (selection === null || provinceAt(game, selection) === null) {
     return false;
   }
   return plan.target?.col !== selection.col || plan.target?.row !== selection.row;
 }
 
-function targetInfo(game: GameState, player: Player, coord: Coord): PlayerBoardData["target"] {
+function targetInfo(game: GameInfo, player: Player, coord: Coord): PlayerBoardData["target"] {
   const tile = tileAt(game, coord);
   const province = provinceAt(game, coord);
   if (tile === null || province === null) {

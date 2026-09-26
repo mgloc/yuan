@@ -1,3 +1,5 @@
+import "./button.css";
+
 export function element<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   className: string,

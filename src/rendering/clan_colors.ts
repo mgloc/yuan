@@ -6,3 +6,7 @@ export const CLAN_COLORS: Record<Clan, number> = {
   [Clan.Weyu]: 0x2e8b57,
   [Clan.Xiangi]: 0xe67e22,
 };
+
+export function clanCssColor(clan: Clan): string {
+  return `#${CLAN_COLORS[clan].toString(16).padStart(6, "0")}`;
+}

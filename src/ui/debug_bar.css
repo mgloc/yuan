@@ -1,0 +1,58 @@
+.debug-bar {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  width: 150px;
+  padding: 8px;
+  border: 1px dashed #ffb300;
+  border-radius: 8px;
+  background: rgba(20, 24, 28, 0.88);
+  color: #f2f2f2;
+  font: 12px/1.4 system-ui, sans-serif;
+}
+
+.debug-bar__label {
+  color: #ffb300;
+}
+
+.debug-bar__seats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.debug-bar__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.debug-bar__actions > * {
+  flex: 1;
+}
+
+.debug-bar__seat,
+.debug-bar__button {
+  padding: 3px 10px;
+  border: 1px solid var(--seat-color, #5c6670);
+  border-radius: 5px;
+  background: transparent;
+  color: #f2f2f2;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.debug-bar__button:hover {
+  border-color: #ffb300;
+}
+
+.debug-bar__seat--active {
+  background: var(--seat-color);
+  font-weight: 600;
+}

@@ -1,4 +1,4 @@
-import type { Coord, GameState, PlayerId } from "../game_types.ts";
+import type { Coord, GameInfo, PlayerId } from "../game_types.ts";
 import { tileAt } from "../game/tile/coords.ts";
 import type { TurnEvent } from "../game/turn/events.ts";
 
@@ -14,7 +14,7 @@ function t(strings: TemplateStringsArray, ...values: LogValue[]): LogPart[] {
   }).filter((part) => part !== "");
 }
 
-export function eventText(game: GameState, event: TurnEvent): LogPart[] {
+export function eventText(game: GameInfo, event: TurnEvent): LogPart[] {
   const clan = (player: PlayerId): LogPart => ({ text: game.players.find(({ id }) => id === player)?.clan ?? `Player ${player}`, player });
   const clans = (players: PlayerId[]) => players.flatMap((player, i) => (i === 0 ? [clan(player)] : [" and ", clan(player)]));
   const place = (coord: Coord) => tileAt(game, coord)?.name ?? `${coord.col}, ${coord.row}`;

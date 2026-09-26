@@ -2,27 +2,15 @@ import {
   ActionType,
   Building,
   Clan,
-  TileType,
   type ActionLevel,
   type Coord,
   type GameState,
-  type Grid,
   type Plan,
   type Player,
   type PlayerId,
   type Province,
-  type Tile,
 } from "../../game_types.ts";
-
-const TILES: Record<string, TileType> = {
-  R: TileType.RiceField,
-  F: TileType.Forest,
-  M: TileType.Mine,
-  H: TileType.Hills,
-  "~": TileType.Water,
-  "^": TileType.Mountain,
-  V: TileType.Volcano,
-};
+import { freeProvince, parseBoard } from "../board_layout.ts";
 
 export interface TestGameOptions {
   provinces?: Record<string, Partial<Province>>;
@@ -32,25 +20,11 @@ export interface TestGameOptions {
 }
 
 export function testGame(layout: string[], options: TestGameOptions = {}): GameState {
-  const tiles: Grid<Tile> = layout.map((line) =>
-    line.split(" ").map((symbol, col) => (symbol === "_" ? null : { type: TILES[symbol], name: `P${col}` })),
-  );
-  const provinces: Grid<Province> = tiles.map((row, r) =>
-    row.map((tile, c) => {
-      if (tile === null || tile.type === TileType.Water || tile.type === TileType.Mountain || tile.type === TileType.Volcano) {
-        return null;
-      }
-      return {
-        owner: null,
-        building: null,
-        doubled: false,
-        ramparts: 0,
-        armies: 0,
-        temple: false,
-        ...options.provinces?.[`${c},${r}`],
-      };
-    }),
-  );
+  const { tiles, provinces } = parseBoard(layout, (col) => `P${col}`);
+  Object.entries(options.provinces ?? {}).forEach(([key, overrides]) => {
+    const [col, row] = key.split(",").map(Number);
+    provinces[row][col] = freeProvince(overrides);
+  });
   const defaults: Player[] = [
     { id: 0, clan: Clan.Suhey, chao: 10 },
     { id: 1, clan: Clan.Xiangi, chao: 10 },
