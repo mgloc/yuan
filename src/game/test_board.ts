@@ -1,4 +1,4 @@
-import { Building, TileType, type Board, type Grid, type PlayerId, type Province, type Tile } from "../game_types.ts";
+import { Building, Clan, TileType, type Board, type Grid, type Player, type PlayerId, type Province, type Tile } from "../game_types.ts";
 
 const tile = (type: TileType, name?: string): Tile => ({ type, name });
 
@@ -24,11 +24,18 @@ export function createTestBoard(): Board {
   ];
 
   const provinces: Grid<Province> = [
-    [owned(0, Building.City, { armies: 2 }), null, null, free(), null],
-    [null, owned(0, Building.Village), null, free({ temple: true }), free()],
+    [owned(0, Building.City, { doubled: true, armies: 2 }), null, null, free(), null],
+    [null, owned(0, Building.Village, { armies: 1 }), null, owned(0, Building.Village, { temple: true }), owned(1, Building.City, { doubled: true, ramparts: 1 })],
     [null, free(), null, owned(1, Building.City, { ramparts: 1, armies: 1 }), null],
-    [free(), null, free({ temple: true }), owned(1, Building.Village), free()],
+    [free(), null, free({ temple: true }), owned(1, Building.Village), owned(1, Building.City, { ramparts: 2, armies: 3 })],
   ];
 
   return { tiles, provinces };
+}
+
+export function createTestPlayers(): Player[] {
+  return [
+    { id: 0, clan: Clan.Suhey, chao: 4 },
+    { id: 1, clan: Clan.Xiangi, chao: 4 },
+  ];
 }

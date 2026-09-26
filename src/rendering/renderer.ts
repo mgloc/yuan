@@ -26,6 +26,9 @@ export class Renderer {
 
     this.scene = new THREE.Scene();
     this.scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+    sun.position.set(6, -4, 10);
+    this.scene.add(sun);
     this.scene.fog = new THREE.Fog(0xffffff, 10, 100);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });

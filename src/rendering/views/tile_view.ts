@@ -2,24 +2,32 @@ import * as THREE from "three";
 import { type Coord, type Tile, TileType } from "../../game_types";
 import { HIGHLIGHT_STYLES, type Highlight, type HighlightStyle } from "../highlight.ts";
 import { createTileLabels } from "./tile_label.ts";
+import { createRelief } from "./tile_relief.ts";
 
 export const TILE_RADIUS = 2;
 const TILE_HEIGHT = TILE_RADIUS / 10;
 const TILE_BEVEL_THINKNESS = TILE_RADIUS / 20;
-const TILE_GEOMETRY = new THREE.ExtrudeGeometry(tileShape(TILE_RADIUS), {
-  depth: TILE_HEIGHT,
-  bevelEnabled: true,
-  steps: 1,
-  bevelThickness: TILE_BEVEL_THINKNESS,
-});
+const WATER_HEIGHT = TILE_HEIGHT * 0.2;
+const tileDepth = (type: TileType) => (type === TileType.Water ? WATER_HEIGHT : TILE_HEIGHT);
+const TILE_GEOMETRIES = new Map<number, THREE.BufferGeometry>(
+  [TILE_HEIGHT, WATER_HEIGHT].map((depth) => [
+    depth,
+    new THREE.ExtrudeGeometry(tileShape(TILE_RADIUS), {
+      depth,
+      bevelEnabled: true,
+      steps: 1,
+      bevelThickness: TILE_BEVEL_THINKNESS,
+    }),
+  ]),
+);
 const TILE_COLORS: Record<TileType, number> = {
   [TileType.RiceField]: 0xc8e66a,
   [TileType.Mine]: 0xb0906a,
   [TileType.Forest]: 0x4a8f4a,
   [TileType.Hills]: 0xaaffaa,
   [TileType.Water]: 0x3366aa,
-  [TileType.Mountain]: 0x888888,
-  [TileType.Volcano]: 0xb03a2e,
+  [TileType.Mountain]: 0x3a3b3e,
+  [TileType.Volcano]: 0x3d3634,
 };
 const TILE_MATERIALS = new Map<TileType, THREE.Material>(
   Object.entries(TILE_COLORS).map(([type, color]) => [
@@ -30,8 +38,9 @@ const TILE_MATERIALS = new Map<TileType, THREE.Material>(
 
 const OUTLINE_OUTER_RADIUS = TILE_RADIUS * 0.98;
 const OUTLINE_SEGMENT_MARGIN = 0.2;
-const OUTLINE_Z = TILE_HEIGHT + TILE_BEVEL_THINKNESS + 0.01;
-const LABEL_Z = TILE_HEIGHT + TILE_BEVEL_THINKNESS + 0.005;
+export const tileTopZ = (type: TileType) => tileDepth(type) + TILE_BEVEL_THINKNESS;
+const OUTLINE_Z_OFFSET = 0.01;
+const LABEL_Z_OFFSET = 0.005;
 const OUTLINES = new Map<Highlight, { geometry: THREE.BufferGeometry; material: THREE.Material; lift: number }>(
   Object.entries(HIGHLIGHT_STYLES).map(([highlight, style]) => [
     highlight as Highlight,
@@ -59,15 +68,21 @@ export class TileView {
     this.root.userData.coord = coord;
 
     const material = TILE_MATERIALS.get(entity.type)!;
-    const mesh = new THREE.Mesh(TILE_GEOMETRY, material);
+    const mesh = new THREE.Mesh(TILE_GEOMETRIES.get(tileDepth(entity.type))!, material);
     this.root.add(mesh);
 
+    const topZ = tileTopZ(entity.type);
+    const relief = createRelief(entity.type, TILE_RADIUS, topZ, coord, TILE_COLORS[entity.type]);
+    if (relief) {
+      this.root.add(relief);
+    }
+
     if (entity.name) {
-      this.root.add(createTileLabels(entity.name, TILE_RADIUS, LABEL_Z));
+      this.root.add(createTileLabels(entity.name, TILE_RADIUS, topZ + LABEL_Z_OFFSET));
     }
 
     this.outline = new THREE.Mesh();
-    this.outline.position.z = OUTLINE_Z;
+    this.outline.position.z = topZ + OUTLINE_Z_OFFSET;
     this.outline.visible = false;
     this.root.add(this.outline);
 
