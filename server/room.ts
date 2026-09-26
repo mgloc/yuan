@@ -1,10 +1,24 @@
-import { ACTION_LEVELS, ActionType, Clan, type Coord, type GameOptions, type GameState, type Plan, type PlayerId } from "../src/game_types.ts";
-import { createDefaultBoard, MAX_PLAYERS } from "../src/game/default_map.ts";
+import { ACTION_LEVELS, ActionType, Clan, type Board, type Coord, type GameState, type Plan, type PlayerId } from "../src/game_types.ts";
+import { MAX_PLAYERS, prebuiltBoard, prebuiltMap } from "../src/game/default_map.ts";
 import { createGame } from "../src/game/setup.ts";
 import { resolveTurn } from "../src/game/turn/resolve.ts";
 import { emptyPlan, isPassing } from "../src/game/plan/plan.ts";
 import { planErrors } from "../src/game/turn/validation.ts";
-import { MIN_PLAYERS, type PlayerView, type Seat, type TurnLog } from "../src/protocol.ts";
+import {
+  citySetup,
+  everyoneAgreed,
+  handOver,
+  newSetup,
+  nextStage,
+  placeTile,
+  setAgreed,
+  setCity,
+  setupBoard,
+  toggleTemple,
+  type SetupState,
+} from "../src/game/setup/setup.ts";
+import type { TileGroupId } from "../src/game/setup/tile_groups.ts";
+import { MapMode, MIN_PLAYERS, type PlayerView, type RoomOptions, type Seat, type TurnLog } from "../src/protocol.ts";
 
 const CLAN_ORDER: readonly Clan[] = [Clan.Suhey, Clan.Xiangi, Clan.Weyu, Clan.Mu];
 const MAX_NAME_LENGTH = 24;
@@ -30,8 +44,9 @@ export interface RoomState {
   code: string;
   debug: boolean;
   host: PlayerId;
-  options: GameOptions;
+  options: RoomOptions;
   members: Member[];
+  setup?: SetupState | null;
   game: GameState | null;
   plans: { [player: PlayerId]: Plan };
   log: TurnLog[];
@@ -42,8 +57,9 @@ export function newRoomState(code: string, debug: boolean): RoomState {
     code,
     debug,
     host: 0,
-    options: { bidding: false, clanPowers: true },
+    options: { bidding: false, clanPowers: true, map: MapMode.Prebuilt },
     members: [],
+    setup: null,
     game: null,
     plans: {},
     log: [],
@@ -64,7 +80,15 @@ export class Room {
   }
 
   get started(): boolean {
-    return this.state.game !== null;
+    return this.state.game !== null || this.setup !== null;
+  }
+
+  private get setup(): SetupState | null {
+    return this.state.setup ?? null;
+  }
+
+  private get active(): PlayerId[] {
+    return this.state.members.filter(({ left }) => !left).map(({ id }) => id);
   }
 
   join(name: string, placeholder = false): Member {
@@ -105,12 +129,17 @@ export class Room {
     return as;
   }
 
-  setOptions(token: string, options: Partial<GameOptions>) {
+  setOptions(token: string, options: Partial<RoomOptions>) {
     this.requireHost(token);
     this.requireLobby();
+    const next = { ...this.state.options };
     if (typeof options.clanPowers === "boolean") {
-      this.state.options = { ...this.state.options, clanPowers: options.clanPowers };
+      next.clanPowers = options.clanPowers;
     }
+    if (options.map === MapMode.Prebuilt || options.map === MapMode.Custom) {
+      next.map = options.map;
+    }
+    this.state.options = next;
   }
 
   start(token: string) {
@@ -119,7 +148,28 @@ export class Room {
     if (this.state.members.length < MIN_PLAYERS) {
       throw new RoomError(409, `At least ${MIN_PLAYERS} players are needed`);
     }
-    this.newGame();
+    this.begin();
+  }
+
+  placeTile(token: string, as: PlayerId | undefined, tile: TileGroupId, anchor: Coord, rotation: number) {
+    const player = this.actor(token, as);
+    this.check(placeTile(this.requireSetup(), player, tile, anchor, rotation, this.active));
+  }
+
+  setCity(token: string, as: PlayerId | undefined, clan: PlayerId, coord: Coord | null) {
+    this.actor(token, as);
+    this.check(setCity(this.requireSetup(), clan, coord));
+  }
+
+  toggleTemple(token: string, as: PlayerId | undefined, coord: Coord) {
+    this.actor(token, as);
+    this.check(toggleTemple(this.requireSetup(), coord));
+  }
+
+  agree(token: string, as: PlayerId | undefined, agreed: boolean) {
+    const player = this.actor(token, as);
+    this.check(setAgreed(this.requireSetup(), player, agreed));
+    this.advanceSetup();
   }
 
   submit(token: string, as: PlayerId | undefined, plan: Plan) {
@@ -149,6 +199,13 @@ export class Room {
       return;
     }
     this.state.members[player].left = true;
+    const setup = this.setup;
+    if (setup !== null) {
+      handOver(setup, player, this.active);
+      setup.agreed = setup.agreed.filter((id) => id !== player);
+      this.advanceSetup();
+      return;
+    }
     if (!this.state.game!.finished) {
       this.state.plans[player] ??= emptyPlan();
       this.resolveIfReady();
@@ -176,13 +233,16 @@ export class Room {
 
   restart(token: string) {
     this.requireDebugHost(token);
-    this.requireGame();
-    this.newGame();
+    if (!this.started) {
+      throw new RoomError(409, "The game has not started");
+    }
+    this.begin();
   }
 
   backToLobby(token: string) {
     this.requireDebugHost(token);
     this.state.game = null;
+    this.state.setup = null;
     this.state.plans = {};
     this.state.log = [];
     this.state.members = this.state.members.filter(({ left }) => !left).map((member, id) => ({ ...member, id }));
@@ -205,8 +265,9 @@ export class Room {
       self,
       host,
       debug,
-      options,
+      options: { ...options, map: options.map ?? MapMode.Prebuilt },
       seats,
+      setup: this.setupView(),
       match:
         game === null
           ? null
@@ -223,9 +284,63 @@ export class Room {
     };
   }
 
-  private newGame() {
+  private setupView(): PlayerView["setup"] {
+    const setup = this.setup;
+    if (setup === null) {
+      return null;
+    }
+    const { stage, tiles, origin, hands, turn, placed, total, cities, temples, agreed } = setup;
+    return { stage, tiles, origin, hands, turn, placed, total, cities, temples, agreed, templesLocked: setup.templesLocked === true };
+  }
+
+  private begin() {
+    this.state.game = null;
+    this.state.plans = {};
+    this.state.log = [];
+    if (this.state.options.map === MapMode.Custom) {
+      const setup = newSetup(this.state.members.length, Math.random);
+      this.state.setup = setup;
+      this.state.members.filter(({ left }) => left).forEach(({ id }) => handOver(setup, id, this.active));
+      return;
+    }
     const players = this.state.members.map(({ id }) => id);
-    this.state.game = createGame(createDefaultBoard(players), players.map(clanOf), this.state.options);
+    const map = prebuiltMap(players.length);
+    if ((map.cities?.length ?? 0) < players.length) {
+      this.state.setup = citySetup(prebuiltBoard(players), players.length);
+      return;
+    }
+    this.state.setup = null;
+    this.newGame(prebuiltBoard(players));
+  }
+
+  private advanceSetup() {
+    const setup = this.setup;
+    while (setup !== null && everyoneAgreed(setup, this.active)) {
+      if (nextStage(setup)) {
+        this.state.setup = null;
+        this.newGame(setupBoard(setup));
+        return;
+      }
+    }
+  }
+
+  private check(error: string | null) {
+    if (error !== null) {
+      throw new RoomError(422, error);
+    }
+  }
+
+  private requireSetup(): SetupState {
+    if (this.setup === null) {
+      throw new RoomError(409, "The map is not being set up");
+    }
+    return this.setup;
+  }
+
+  private newGame(board: Board) {
+    const players = this.state.members.map(({ id }) => id);
+    const { bidding, clanPowers } = this.state.options;
+    this.state.game = createGame(board, players.map(clanOf), { bidding, clanPowers });
     this.state.plans = {};
     this.state.log = [];
     this.passForLeavers();
@@ -308,7 +423,7 @@ export function parsePlan(value: unknown): Plan | null {
   return { target, actions: parsed };
 }
 
-function isCoord(value: unknown): value is Coord {
+export function isCoord(value: unknown): value is Coord {
   if (typeof value !== "object" || value === null) {
     return false;
   }

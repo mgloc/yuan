@@ -52,10 +52,8 @@ export class TurnController {
 
     const winner = view.seats.find(({ id }) => id === game.winner);
     this.bar.update({
-      turn: game.turn,
-      lastTurn: LAST_TURN,
-      templeTarget: templeTarget(game.turn),
-      eruption: VOLCANO_ERUPTION_TURNS.has(game.turn),
+      title: winner === undefined ? `Turn ${game.turn} / ${LAST_TURN}` : `${winner.name} (${winner.clan}) wins`,
+      hint: `${templeTarget(game.turn)} Temples to win${VOLCANO_ERUPTION_TURNS.has(game.turn) ? " · Eruption this turn" : ""}`,
       seats: view.seats.map((seat) => ({
         label: seat.name,
         clan: seat.clan,
@@ -65,7 +63,6 @@ export class TurnController {
         left: seat.left,
       })),
       status: this.status(view, game),
-      winner: winner === undefined ? null : `${winner.name} (${winner.clan})`,
       exitLabel: view.host === view.self ? "End game" : "Leave",
     });
   }

@@ -13,13 +13,10 @@ export interface TurnBarSeat {
 }
 
 export interface TurnBarData {
-  turn: number;
-  lastTurn: number;
-  templeTarget: number;
-  eruption: boolean;
+  title: string;
+  hint: string;
   seats: TurnBarSeat[];
   status: string;
-  winner: string | null;
   exitLabel: string;
 }
 
@@ -52,8 +49,8 @@ export class TurnBar {
 
   update(data: TurnBarData) {
     this.title.replaceChildren(
-      element("strong", "", data.winner === null ? `Turn ${data.turn} / ${data.lastTurn}` : `${data.winner} wins`),
-      element("span", "turn-bar__hint", `${data.templeTarget} Temples to win${data.eruption ? " · Eruption this turn" : ""}`),
+      element("strong", "", data.title),
+      element("span", "turn-bar__hint", data.hint),
     );
     this.seats.replaceChildren(
       ...data.seats.map((seat) => {

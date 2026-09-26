@@ -1,13 +1,13 @@
 import * as THREE from "three";
 import { type Coord, type Tile, TileType } from "../../game_types";
 import { disposeObject } from "../dispose.ts";
+import { TILE_RADIUS } from "../hex_layout.ts";
 import { HIGHLIGHT_STYLES, type Highlight, type HighlightStyle } from "../highlight.ts";
 import { createTileLabels } from "./tile_label.ts";
 import { createRelief } from "./tile_relief.ts";
 import { createMinePit, mineHole } from "./tile_mine.ts";
 import { isTextured, tileTexture } from "./tile_textures.ts";
 
-export const TILE_RADIUS = 2;
 const TILE_HEIGHT = TILE_RADIUS / 10;
 const TILE_BEVEL_THINKNESS = TILE_RADIUS / 20;
 const WATER_HEIGHT = TILE_HEIGHT * 0.2;
@@ -25,7 +25,7 @@ const WATER_GEOMETRY = extrude(tileShape(TILE_RADIUS), WATER_HEIGHT);
 const MINE_GEOMETRY = extrude(withHole(tileShape(TILE_RADIUS), mineHole(TILE_RADIUS)), TILE_HEIGHT);
 const tileGeometry = (type: TileType) =>
   type === TileType.Water ? WATER_GEOMETRY : type === TileType.Mine ? MINE_GEOMETRY : TILE_GEOMETRY;
-const TILE_COLORS: Record<TileType, number> = {
+export const TILE_COLORS: Record<TileType, number> = {
   [TileType.RiceField]: 0xdcdb8e,
   [TileType.Mine]: 0xa8784a,
   [TileType.Forest]: 0x6f9e3c,
@@ -48,6 +48,8 @@ const TILE_MATERIALS = new Map<TileType, THREE.Material | THREE.Material[]>(
 
 const OUTLINE_OUTER_RADIUS = TILE_RADIUS * 0.98;
 const OUTLINE_SEGMENT_MARGIN = 0.2;
+export { TILE_RADIUS };
+export const TILE_BOTTOM_Z = -TILE_BEVEL_THINKNESS;
 export const tileTopZ = (type: TileType) => tileDepth(type) + TILE_BEVEL_THINKNESS;
 export const WATER_SURFACE_Z = tileTopZ(TileType.Water) + 0.05;
 const OUTLINE_Z_OFFSET = 0.01;

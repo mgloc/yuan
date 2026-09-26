@@ -27,12 +27,16 @@ export class TableView {
   private materials: THREE.Material[] = [];
   private textures: THREE.Texture[] = [];
 
-  constructor(parent: THREE.Object3D, board: THREE.Box3, tiles: THREE.Vector3[], tileRadius: number) {
+  private footprint: THREE.Mesh | null = null;
+  private surface: number;
+
+  constructor(parent: THREE.Object3D, board: THREE.Box3) {
     const size = board.getSize(new THREE.Vector3());
     const center = board.getCenter(new THREE.Vector3());
     const width = size.x + TOP_MARGIN * 2;
     const depth = size.y + TOP_MARGIN * 2;
     const surface = board.min.z;
+    this.surface = surface;
 
     const top = this.wood(width, depth, "#8a5a33", 0.45);
     const frame = this.wood(WOOD_TILE_UNITS, WOOD_TILE_UNITS, "#6e4527", 0.6);
@@ -69,12 +73,30 @@ export class TableView {
       }
     }
 
-    this.root.add(this.contactShadow(board, tiles, tileRadius));
     this.root.add(this.floorShadow(width, depth, center));
     parent.add(this.root);
   }
 
+  setFootprint(tiles: THREE.Vector3[], tileRadius: number) {
+    if (this.footprint !== null) {
+      this.root.remove(this.footprint);
+      disposeObject(this.footprint);
+      (this.footprint.material as THREE.MeshBasicMaterial).map?.dispose();
+      this.footprint = null;
+    }
+    if (tiles.length === 0) {
+      return;
+    }
+    const bounds = new THREE.Box3();
+    tiles.forEach((tile) => bounds.expandByPoint(tile));
+    bounds.expandByVector(new THREE.Vector3(tileRadius, tileRadius, 0));
+    bounds.min.z = this.surface;
+    this.footprint = this.contactShadow(bounds, tiles, tileRadius);
+    this.root.add(this.footprint);
+  }
+
   dispose(parent: THREE.Object3D) {
+    this.setFootprint([], 0);
     parent.remove(this.root);
     disposeObject(this.root);
     this.materials.forEach((material) => material.dispose());
@@ -110,8 +132,6 @@ export class TableView {
     const size = new THREE.Vector2(board.max.x - board.min.x + SHADOW_SPREAD * 2, board.max.y - board.min.y + SHADOW_SPREAD * 2);
     const texture = new THREE.CanvasTexture(shadowCanvas(min, size, tiles, tileRadius));
     const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: SHADOW_OPACITY, depthWrite: false });
-    this.textures.push(texture);
-    this.materials.push(material);
     const shadow = new THREE.Mesh(new THREE.PlaneGeometry(size.x, size.y), material);
     shadow.position.set(min.x + size.x / 2, min.y + size.y / 2, board.min.z + 0.01);
     shadow.renderOrder = -1;

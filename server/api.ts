@@ -1,9 +1,9 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { PlayerId } from "../src/game_types.ts";
-import { RoomAction, type Credentials, type ErrorResponse } from "../src/protocol.ts";
+import { MapMode, RoomAction, type Credentials, type ErrorResponse, type RoomOptions } from "../src/protocol.ts";
 import { clientIp, IpLimits } from "./ip_limits.ts";
 import { LocalNotifier, type Notifier } from "./notifier.ts";
-import { parsePlan, RoomError, type Room } from "./room.ts";
+import { isCoord, parsePlan, RoomError, type Room } from "./room.ts";
 import { RoomService } from "./room_service.ts";
 import type { RoomStore } from "./store/store.ts";
 
@@ -188,6 +188,37 @@ function actionFor(action: Exclude<RoomAction, typeof RoomAction.Delete>, body: 
       return (room) => room.backToLobby(token);
     case RoomAction.Leave:
       return (room) => room.leave(token);
+    case RoomAction.PlaceTile: {
+      const tile = body.tile;
+      const anchor = body.anchor;
+      const rotation = body.rotation;
+      if (typeof tile !== "string" || !isCoord(anchor) || !Number.isInteger(rotation)) {
+        throw new RoomError(400, "Invalid tile placement");
+      }
+      return (room) => room.placeTile(token, as, tile, anchor, rotation as number);
+    }
+    case RoomAction.SetCity: {
+      const clan = body.clan;
+      const coord = body.coord ?? null;
+      if (!Number.isInteger(clan) || (coord !== null && !isCoord(coord))) {
+        throw new RoomError(400, "Invalid City placement");
+      }
+      return (room) => room.setCity(token, as, clan as number, coord);
+    }
+    case RoomAction.ToggleTemple: {
+      const coord = body.coord;
+      if (!isCoord(coord)) {
+        throw new RoomError(400, "Invalid Temple placement");
+      }
+      return (room) => room.toggleTemple(token, as, coord);
+    }
+    case RoomAction.Agree: {
+      if (typeof body.agreed !== "boolean") {
+        throw new RoomError(400, "Invalid agreement");
+      }
+      const agreed = body.agreed;
+      return (room) => room.agree(token, as, agreed);
+    }
   }
 }
 
@@ -215,12 +246,20 @@ function nameOf(body: Record<string, unknown>): string {
   return body.name ?? "";
 }
 
-function optionsOf(body: Record<string, unknown>): { clanPowers?: boolean } {
+function optionsOf(body: Record<string, unknown>): Partial<RoomOptions> {
   const options = body.options;
-  if (typeof options !== "object" || options === null || typeof (options as Record<string, unknown>).clanPowers !== "boolean") {
+  if (typeof options !== "object" || options === null) {
     throw new RoomError(400, "Invalid options");
   }
-  return { clanPowers: (options as { clanPowers: boolean }).clanPowers };
+  const { clanPowers, map } = options as Record<string, unknown>;
+  const valid =
+    (clanPowers === undefined || typeof clanPowers === "boolean") &&
+    (map === undefined || map === MapMode.Prebuilt || map === MapMode.Custom) &&
+    (clanPowers !== undefined || map !== undefined);
+  if (!valid) {
+    throw new RoomError(400, "Invalid options");
+  }
+  return { clanPowers: clanPowers as boolean | undefined, map: map as RoomOptions["map"] | undefined };
 }
 
 function credentials(body: Record<string, unknown>): Credentials {

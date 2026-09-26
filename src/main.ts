@@ -1,6 +1,7 @@
 import "./ui/screen.css";
 import { MAX_PLAYERS } from "./game/default_map.ts";
 import { GameScreen } from "./game_screen.ts";
+import { SetupScreen } from "./setup_screen.ts";
 import { createRoom, joinRoom } from "./net/api.ts";
 import { GameClient } from "./net/game_client.ts";
 import { forgetSession, loadName, loadSession, saveName, saveSession } from "./net/session.ts";
@@ -17,6 +18,7 @@ let client: GameClient | null = null;
 let landing: Landing | null = null;
 let lobby: Lobby | null = null;
 let game: GameScreen | null = null;
+let setup: SetupScreen | null = null;
 
 function clear() {
   client?.close();
@@ -27,6 +29,8 @@ function clear() {
   lobby = null;
   game?.dispose();
   game = null;
+  setup?.dispose();
+  setup = null;
 }
 
 function showLanding(code: string, error: string) {
@@ -80,9 +84,10 @@ async function exit(current: GameClient) {
     return;
   }
   const host = current.isHost;
-  const started = view.match !== null && !view.match.finished;
+  const inLobby = view.match === null && view.setup === null;
+  const started = view.setup !== null || (view.match !== null && !view.match.finished);
   const question = host
-    ? `Delete this ${view.match === null ? "lobby" : "game"} for everyone?`
+    ? `Delete this ${inLobby ? "lobby" : "game"} for everyone?`
     : started
       ? "Leave the game? Your Clan will pass every remaining turn."
       : "Leave the lobby?";
@@ -100,11 +105,23 @@ async function exit(current: GameClient) {
 }
 
 function route(current: GameClient, view: PlayerView) {
+  if (view.setup !== null) {
+    lobby?.dispose();
+    lobby = null;
+    game?.dispose();
+    game = null;
+    setup ??= new SetupScreen(container, current, view, () => exit(current));
+    setup.update(view);
+    return;
+  }
+  setup?.dispose();
+  setup = null;
   if (view.match === null) {
     game?.dispose();
     game = null;
     lobby ??= new Lobby(container, {
-      onClanPowers: (enabled) => current.setOptions(enabled),
+      onClanPowers: (clanPowers) => current.setOptions({ clanPowers }),
+      onMap: (map) => current.setOptions({ map }),
       onLaunch: () => current.start(),
       onAddPlayer: () => current.addPlayer(),
       onCopyLink: () => navigator.clipboard?.writeText(`${location.origin}${location.pathname}?game=${view.code}`),
@@ -125,6 +142,7 @@ function route(current: GameClient, view: PlayerView) {
       isHost: current.isHost,
       debug: view.debug,
       clanPowers: view.options.clanPowers,
+      map: view.options.map,
     });
     return;
   }

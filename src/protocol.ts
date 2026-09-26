@@ -1,7 +1,20 @@
-import type { Board, Clan, GameOptions, Plan, PlayerId } from "./game_types.ts";
+import type { Board, Clan, Coord, GameOptions, Grid, Plan, PlayerId, Tile } from "./game_types.ts";
+import type { SetupStage } from "./game/setup/setup.ts";
+import type { TileGroupId } from "./game/setup/tile_groups.ts";
 import type { TurnEvent } from "./game/turn/events.ts";
 
 export const MIN_PLAYERS = 2;
+
+export const MapMode = {
+  Prebuilt: "prebuilt",
+  Custom: "custom",
+} as const;
+
+export type MapMode = (typeof MapMode)[keyof typeof MapMode];
+
+export interface RoomOptions extends GameOptions {
+  map: MapMode;
+}
 
 export interface Session {
   code: string;
@@ -32,14 +45,29 @@ export interface MatchView extends Board {
   log: TurnLog[];
 }
 
+export interface SetupView {
+  stage: SetupStage;
+  tiles: Grid<Tile>;
+  origin: Coord | null;
+  hands: TileGroupId[][];
+  turn: PlayerId | null;
+  placed: number;
+  total: number;
+  cities: (Coord | null)[];
+  temples: Coord[];
+  agreed: PlayerId[];
+  templesLocked: boolean;
+}
+
 export interface PlayerView {
   code: string;
   you: PlayerId;
   self: PlayerId;
   host: PlayerId;
   debug: boolean;
-  options: GameOptions;
+  options: RoomOptions;
   seats: Seat[];
+  setup: SetupView | null;
   match: MatchView | null;
 }
 
@@ -57,7 +85,15 @@ export interface Credentials {
   as?: PlayerId;
 }
 
-export type OptionsRequest = Credentials & { options: Pick<GameOptions, "clanPowers"> };
+export type OptionsRequest = Credentials & { options: Partial<Pick<RoomOptions, "clanPowers" | "map">> };
+
+export type PlaceTileRequest = Credentials & { tile: TileGroupId; anchor: Coord; rotation: number };
+
+export type SetCityRequest = Credentials & { clan: PlayerId; coord: Coord | null };
+
+export type ToggleTempleRequest = Credentials & { coord: Coord };
+
+export type AgreeRequest = Credentials & { agreed: boolean };
 
 export type PlanRequest = Credentials & { plan: Plan };
 
@@ -71,6 +107,10 @@ export const RoomAction = {
   Lobby: "lobby",
   Leave: "leave",
   Delete: "delete",
+  PlaceTile: "place-tile",
+  SetCity: "set-city",
+  ToggleTemple: "toggle-temple",
+  Agree: "agree",
 } as const;
 
 export type RoomAction = (typeof RoomAction)[keyof typeof RoomAction];

@@ -6,11 +6,9 @@ import type { PieceFactory } from "../pieces/piece_factory.ts";
 import { ProvinceView } from "./province_view.ts";
 import { TILE_RADIUS, TileView, WATER_SURFACE_Z, tileTopZ } from "./tile_view.ts";
 import { disposeObject } from "../dispose.ts";
+import { hexToWorld } from "../hex_layout.ts";
 import { WaterView } from "./water_view.ts";
 
-const SQRT3 = Math.sqrt(3);
-const TILE_STEP_X = 1.5 * TILE_RADIUS;
-const TILE_STEP_Y = SQRT3 * TILE_RADIUS;
 
 export class TileGridView {
   root: THREE.Group;
@@ -18,7 +16,7 @@ export class TileGridView {
   provinceViews = new Map<string, ProvinceView>();
   water: WaterView | null = null;
 
-  constructor(parent: THREE.Object3D, grid: Grid<Tile>, factory: PieceFactory, sunDirection: THREE.Vector3) {
+  constructor(parent: THREE.Object3D, grid: Grid<Tile>, factory: PieceFactory, sunDirection: THREE.Vector3, origin: Coord | null = null) {
     this.root = new THREE.Group();
     const waterCenters: THREE.Vector3[] = [];
 
@@ -42,8 +40,12 @@ export class TileGridView {
       this.water = new WaterView(this.root, waterCenters, TILE_RADIUS, WATER_SURFACE_Z, sunDirection);
     }
 
-    const center = new THREE.Box3().setFromObject(this.root).getCenter(new THREE.Vector3());
-    this.root.position.sub(center);
+    if (origin !== null) {
+      this.root.position.sub(hexToWorld(origin.col, origin.row));
+    } else if (this.views.size > 0) {
+      const center = new THREE.Box3().setFromObject(this.root).getCenter(new THREE.Vector3());
+      this.root.position.sub(center);
+    }
 
     parent.add(this.root);
   }
@@ -81,11 +83,4 @@ export class TileGridView {
     disposeObject(this.root);
     parent.remove(this.root);
   }
-}
-
-/* Matrix to hex tile placement */
-export function hexToWorld(col: number, row: number): THREE.Vector3 {
-  const x = col * TILE_STEP_X;
-  const y = (row + (col & 1 ? 0.5 : 0)) * TILE_STEP_Y;
-  return new THREE.Vector3(x, y, 0);
 }

@@ -19,14 +19,21 @@ export function parseBoard(layout: string[], name: (col: number, row: number) =>
     line
       .trim()
       .split(/\s+/)
-      .map((symbol, col) => {
-        if (symbol === "_") {
-          return null;
-        }
-        const tile: Tile = { type: TILES[symbol] };
-        return isLand(tile) ? { ...tile, name: name(col, row) } : tile;
-      }),
+      .map((token, col) => parseCell(token, () => name(col, row))),
   );
   const provinces: Grid<Province> = tiles.map((line) => line.map((tile) => (tile !== null && isLand(tile) ? freeProvince() : null)));
   return { tiles, provinces };
+}
+
+export function parseCell(token: string, fallbackName: () => string | undefined = () => undefined): Tile | null {
+  const [symbol, label] = token.split(":");
+  if (symbol === "_") {
+    return null;
+  }
+  const type = TILES[symbol];
+  if (type === undefined) {
+    throw new Error(`Unknown terrain symbol "${symbol}"`);
+  }
+  const tile: Tile = { type };
+  return isLand(tile) ? { ...tile, name: label ?? fallbackName() } : tile;
 }

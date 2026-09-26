@@ -1,4 +1,10 @@
+import { MapMode } from "../protocol.ts";
 import { element } from "./dom.ts";
+
+const MAP_CHOICES: readonly { mode: MapMode; title: string; hint: string }[] = [
+  { mode: MapMode.Prebuilt, title: "Prebuilt map", hint: "Start right away on a ready-made map" },
+  { mode: MapMode.Custom, title: "Build it together", hint: "Place Territory tiles in turns, then agree on Cities and Temples" },
+];
 
 export interface LobbySeat {
   name: string;
@@ -17,10 +23,12 @@ export interface LobbyData {
   isHost: boolean;
   debug: boolean;
   clanPowers: boolean;
+  map: MapMode;
 }
 
 export interface LobbyHandlers {
   onClanPowers: (enabled: boolean) => void;
+  onMap: (mode: MapMode) => void;
   onLaunch: () => void;
   onAddPlayer: () => void;
   onCopyLink: () => void;
@@ -34,6 +42,7 @@ export class Lobby {
   private players: HTMLElement;
   private clanPowers: HTMLInputElement;
   private clanLabel: HTMLElement;
+  private maps: { mode: MapMode; input: HTMLInputElement; label: HTMLElement }[];
   private addPlayer: HTMLButtonElement;
   private launch: HTMLButtonElement;
   private hint: HTMLElement;
@@ -69,8 +78,19 @@ export class Lobby {
     const clanText = element("span", "");
     clanText.append(element("strong", "", "Clan rules"), element("span", "screen__hint", "Starting Chão modifiers and clan powers"));
     this.clanLabel.append(this.clanPowers, clanText);
+    this.maps = MAP_CHOICES.map(({ mode, title, hint }) => {
+      const input = element("input", "");
+      input.type = "radio";
+      input.name = "lobby-map";
+      input.addEventListener("change", () => input.checked && handlers.onMap(mode));
+      const label = element("label", "screen__option");
+      const text = element("span", "");
+      text.append(element("strong", "", title), element("span", "screen__hint", hint));
+      label.append(input, text);
+      return { mode, input, label };
+    });
     const optionsSection = element("section", "screen__section");
-    optionsSection.append(element("h2", "screen__heading", "Options"), this.clanLabel);
+    optionsSection.append(element("h2", "screen__heading", "Options"), this.clanLabel, element("h2", "screen__heading", "Map"), ...this.maps.map(({ label }) => label));
 
     this.launch = element("button", "player-button", "Launch game");
     this.launch.addEventListener("click", handlers.onLaunch);
@@ -118,6 +138,11 @@ export class Lobby {
     this.addPlayer.hidden = !(data.debug && data.isHost);
     this.addPlayer.disabled = full;
 
+    for (const { mode, input, label } of this.maps) {
+      input.checked = data.map === mode;
+      input.disabled = !data.isHost;
+      label.classList.toggle("screen__option--disabled", !data.isHost);
+    }
     this.clanPowers.checked = data.clanPowers;
     this.clanPowers.disabled = !data.isHost;
     this.clanLabel.classList.toggle("screen__option--disabled", !data.isHost);

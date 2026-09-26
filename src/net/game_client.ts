@@ -1,6 +1,7 @@
-import type { Plan, PlayerId } from "../game_types.ts";
+import type { Coord, Plan, PlayerId } from "../game_types.ts";
+import type { TileGroupId } from "../game/setup/tile_groups.ts";
 import { Observable } from "../interaction/observable.ts";
-import { RoomAction, type PlayerView, type Session } from "../protocol.ts";
+import { RoomAction, type PlayerView, type RoomOptions, type Session } from "../protocol.ts";
 import { eventsUrl, roomAction } from "./api.ts";
 
 export type GoneReason = "closed" | "unavailable";
@@ -38,8 +39,24 @@ export class GameClient {
     this.connect();
   }
 
-  setOptions(clanPowers: boolean) {
-    this.send(RoomAction.Options, { options: { clanPowers } });
+  setOptions(options: Partial<Pick<RoomOptions, "clanPowers" | "map">>) {
+    this.send(RoomAction.Options, { options });
+  }
+
+  placeTile(tile: TileGroupId, anchor: Coord, rotation: number) {
+    this.send(RoomAction.PlaceTile, { tile, anchor, rotation });
+  }
+
+  setCity(clan: PlayerId, coord: Coord | null) {
+    this.send(RoomAction.SetCity, { clan, coord });
+  }
+
+  toggleTemple(coord: Coord) {
+    this.send(RoomAction.ToggleTemple, { coord });
+  }
+
+  agree(agreed: boolean) {
+    this.send(RoomAction.Agree, { agreed });
   }
 
   start() {
