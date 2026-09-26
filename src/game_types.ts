@@ -115,6 +115,8 @@ export interface GameState {
   players: Player[];
 }
 
+export type Board = Pick<GameState, "tiles" | "provinces">;
+
 export const STARTING_CHAO = 4;
 export const STARTING_CHAO_WITH_BIDDING = 6;
 export const PASS_INCOME = 6;
