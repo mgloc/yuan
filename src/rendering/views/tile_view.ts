@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { type Coord, type Tile, TileType } from "../../game_types";
 import { HIGHLIGHT_COLORS, type Highlight } from "../highlight.ts";
+import { createTileLabels } from "./tile_label.ts";
 
 export const TILE_RADIUS = 2;
 const TILE_HEIGHT = TILE_RADIUS / 10;
@@ -30,6 +31,7 @@ const TILE_MATERIALS = new Map<TileType, THREE.Material>(
 const OUTLINE_OUTER_RADIUS = TILE_RADIUS * 0.98;
 const OUTLINE_INNER_RADIUS = TILE_RADIUS * 0.82;
 const OUTLINE_Z = TILE_HEIGHT + TILE_BEVEL_THINKNESS + 0.01;
+const LABEL_Z = TILE_HEIGHT + TILE_BEVEL_THINKNESS + 0.005;
 const OUTLINE_GEOMETRY = new THREE.ShapeGeometry(outlineShape(OUTLINE_OUTER_RADIUS, OUTLINE_INNER_RADIUS));
 const OUTLINE_MATERIALS = new Map<Highlight, THREE.Material>(
   Object.entries(HIGHLIGHT_COLORS).map(([highlight, color]) => [
@@ -51,6 +53,10 @@ export class TileView {
     const material = TILE_MATERIALS.get(entity.type)!;
     const mesh = new THREE.Mesh(TILE_GEOMETRY, material);
     this.root.add(mesh);
+
+    if (entity.name) {
+      this.root.add(createTileLabels(entity.name, TILE_RADIUS, LABEL_Z));
+    }
 
     this.outline = new THREE.Mesh(OUTLINE_GEOMETRY);
     this.outline.position.z = OUTLINE_Z;
