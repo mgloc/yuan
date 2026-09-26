@@ -29,6 +29,7 @@ export class PlayerBoardController {
 
   constructor(
     container: HTMLElement,
+    side: HTMLElement,
     view: Observable<PlayerView>,
     game: Observable<GameInfo>,
     draft: PlanDraft,
@@ -44,7 +45,7 @@ export class PlayerBoardController {
     this.highlights = highlights;
     this.colorOf = colorOf;
 
-    this.board = new PlayerBoard(container, {
+    this.board = new PlayerBoard(container, side, {
       onTarget: () => draft.setTarget(selection.get()),
       onClear: () => draft.setTarget(null),
       onLevel: (type, level) => draft.toggleLevel(type, level),

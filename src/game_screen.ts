@@ -21,9 +21,11 @@ import { Renderer } from "./rendering/renderer.ts";
 import { TableView } from "./rendering/views/table_view.ts";
 import { TileGridView } from "./rendering/views/tile_grid_view.ts";
 import { TILE_RADIUS } from "./rendering/views/tile_view.ts";
+import { element } from "./ui/dom.ts";
 import { InfoPanel } from "./ui/info_panel.ts";
+import "./ui/hud.css";
 
-const FRAME_TOP_INSET = 72;
+const HUD_GAP = 8;
 
 export class GameScreen {
   private view: Observable<PlayerView>;
@@ -53,9 +55,11 @@ export class GameScreen {
     const picker = new TilePicker(renderer, grid.root);
     const highlights = new HighlightLayers(grid);
     const selection = new Selection();
-    const panel = new InfoPanel(container);
+    const side = element("div", "hud-side");
+    container.appendChild(side);
+    const panel = new InfoPanel(side);
     const tileSelection = new TileSelectionController(this.game, highlights, picker, selection, panel);
-    const board = new PlayerBoardController(container, this.view, this.game, this.draft, selection, highlights, cssColor, {
+    const board = new PlayerBoardController(container, side, this.view, this.game, this.draft, selection, highlights, cssColor, {
       submit: (plan) => client.submit(plan),
       edit: () => client.edit(),
     });
@@ -67,14 +71,17 @@ export class GameScreen {
     const table = new TableView(renderer.scene, bounds, grid.tileCenters(), TILE_RADIUS);
     renderer.environment.setGround(table.floorZ);
     const layout = (apply: boolean) => {
+      const top = turn.root.getBoundingClientRect().bottom + HUD_GAP;
       const bottom = window.innerHeight - board.root.getBoundingClientRect().top;
+      container.style.setProperty("--hud-top", `${top}px`);
       container.style.setProperty("--hud-bottom", `${bottom}px`);
-      renderer.setInsets({ top: FRAME_TOP_INSET, bottom });
+      renderer.setInsets({ top, bottom });
       rig.frame(bounds, apply);
     };
     layout(true);
     const boardSize = new ResizeObserver(() => layout(false));
     boardSize.observe(board.root);
+    boardSize.observe(turn.root);
     const onResize = () => {
       renderer.resize(window.innerWidth, window.innerHeight);
       layout(false);
@@ -85,6 +92,7 @@ export class GameScreen {
       unsubscribe,
       () => window.removeEventListener("resize", onResize),
       () => boardSize.disconnect(),
+      () => container.style.removeProperty("--hud-top"),
       () => container.style.removeProperty("--hud-bottom"),
       () => table.dispose(renderer.scene),
       () => focus.dispose(),
@@ -94,10 +102,11 @@ export class GameScreen {
       () => tileSelection.dispose(),
       () => panel.dispose(),
       () => picker.dispose(),
+      () => side.remove(),
     );
 
     if (initial.debug && client.isHost) {
-      const debug = new DebugController(container, this.view, initial.self, cssColor, {
+      const debug = new DebugController(side, this.view, initial.self, cssColor, {
         actAs: (player) => client.actAs(player),
         restart: () => client.restart(),
         toLobby: () => client.toLobby(),

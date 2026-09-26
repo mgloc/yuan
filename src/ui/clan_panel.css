@@ -1,0 +1,97 @@
+.clan-panel {
+  --accent: #ffb300;
+  --clan-color: #888;
+  box-sizing: border-box;
+  max-width: 260px;
+  border-left: 3px solid var(--clan-color);
+  border-radius: 8px;
+  background: rgba(20, 24, 28, 0.88);
+  color: #f2f2f2;
+  font: 13px/1.4 system-ui, sans-serif;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.clan-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: 600 15px/1.2 system-ui, sans-serif;
+  text-align: left;
+  cursor: pointer;
+}
+
+.clan-panel__dot {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--clan-color);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25);
+}
+
+.clan-panel__name {
+  flex: 1;
+}
+
+.clan-panel__chevron::before {
+  content: "‹";
+  display: block;
+  color: var(--accent);
+  font-size: 16px;
+  line-height: 1;
+  transform: rotate(-90deg);
+  transition: transform 0.2s ease;
+}
+
+.clan-panel--open .clan-panel__chevron::before {
+  transform: rotate(90deg);
+}
+
+.clan-panel__body {
+  display: none;
+  padding: 0 12px 10px;
+}
+
+.clan-panel--open .clan-panel__body {
+  display: block;
+}
+
+.clan-panel__power {
+  margin: 0;
+}
+
+.clan-panel__hint {
+  margin: 4px 0 0;
+  color: #a8b0b8;
+}
+
+.clan-panel__hint[hidden] {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  .clan-panel {
+    max-width: 200px;
+    font-size: 12px;
+  }
+
+  .clan-panel__header {
+    padding: 6px 10px;
+    font-size: 14px;
+  }
+
+  .clan-panel__body {
+    padding: 0 10px 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clan-panel__chevron::before {
+    transition: none;
+  }
+}

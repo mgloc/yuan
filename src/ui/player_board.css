@@ -1,25 +1,132 @@
 .player-board {
   --accent: #ffb300;
   --clan-color: #888;
+  --board-handle: 30px;
   position: fixed;
-  left: 16px;
-  right: 16px;
-  bottom: 16px;
-  display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) minmax(180px, 1fr) minmax(300px, 1.6fr);
-  gap: 1px;
-  overflow: hidden;
-  border-radius: 8px;
-  border-top: 3px solid var(--clan-color);
-  background: rgba(255, 255, 255, 0.08);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   color: #f2f2f2;
   font: 13px/1.4 system-ui, sans-serif;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+}
+
+.player-board__drawer {
+  display: grid;
+  grid-template-rows: 0fr;
+  width: 100%;
+  overflow: hidden;
+  transition: grid-template-rows 0.25s ease;
+}
+
+.player-board--open .player-board__drawer {
+  grid-template-rows: 1fr;
+}
+
+.player-board__handle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--board-handle);
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px 8px 0 0;
+  background: rgba(20, 24, 28, 0.92);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.25);
+  color: var(--accent);
+  font: 600 11px/1 system-ui, sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.player-board__chevron::before {
+  content: "‹";
+  display: block;
+  font-size: 16px;
+  transform: rotate(90deg);
+  transition: transform 0.25s ease;
+}
+
+.player-board--open .player-board__chevron::before {
+  transform: rotate(-90deg);
+}
+
+.player-board__summary {
+  color: #d8dde2;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.player-board__cards {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) minmax(200px, 1fr) minmax(320px, 1.6fr);
+  gap: 1px;
+  min-height: 0;
+  max-height: calc(100dvh - var(--hud-top, 72px) - var(--board-handle));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-top: 3px solid var(--clan-color);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.3);
+  pointer-events: auto;
+}
+
+.player-board__cards > .player-card {
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
 }
 
 @media (max-width: 900px) {
-  .player-board {
+  .player-board__cards {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .player-board__cards > .player-card {
+    padding-bottom: 12px;
+  }
+
+  .player-card--plan {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 600px) {
+  .player-board__cards {
+    grid-template-columns: 1fr;
+    max-height: min(55dvh, calc(100dvh - var(--hud-top, 72px) - var(--board-handle)));
+    padding-bottom: env(safe-area-inset-bottom);
+    background: rgba(20, 24, 28, 0.9);
+  }
+
+  .player-board__cards > .player-card {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .player-card--target { order: 1; }
+  .player-card--plan { order: 2; }
+  .player-card--resources { order: 3; }
+}
+
+@media (pointer: coarse) {
+  .player-board .player-button {
+    padding: 8px 12px;
+  }
+
+  .plan-level {
+    padding: 6px 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-board__drawer,
+  .player-board__chevron::before {
+    transition: none;
   }
 }
 
@@ -86,26 +193,6 @@
 .swatch--Mine { background: #a8784a; }
 .swatch--Temple { background: #8b5a2b; border-radius: 50% 50% 2px 2px; }
 .swatch--Chao { background: var(--accent); border-radius: 50%; }
-
-.clan-name {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.clan-name__dot {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--clan-color);
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25);
-}
-
-.clan-power {
-  margin: 6px 0 0;
-}
 
 .target-name {
   font-size: 16px;
@@ -228,4 +315,14 @@
 
 .plan-footer__buttons {
   margin-top: 0;
+}
+
+@media (max-width: 600px) {
+  .plan-footer {
+    flex-wrap: wrap;
+  }
+
+  .plan-footer__buttons {
+    margin-left: auto;
+  }
 }

@@ -30,6 +30,10 @@ export class TurnController {
     this.render();
   }
 
+  get root(): HTMLElement {
+    return this.bar.root;
+  }
+
   dispose() {
     this.unsubscribe();
     this.bar.dispose();

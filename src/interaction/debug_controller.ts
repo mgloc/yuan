@@ -3,8 +3,6 @@ import type { PlayerView } from "../protocol.ts";
 import { DebugBar } from "../ui/debug_bar.ts";
 import type { Observable } from "./observable.ts";
 
-const HUD_GAP = 12;
-
 export interface DebugActions {
   actAs: (player: PlayerId) => void;
   restart: () => void;
@@ -39,7 +37,6 @@ export class DebugController {
         current.you,
       );
     render(view.get());
-    document.body.style.setProperty("--hud-top-left", `${this.bar.root.getBoundingClientRect().bottom + HUD_GAP}px`);
     this.unsubscribe = view.onChange(render);
     window.addEventListener("keydown", this.onKeyDown);
   }
@@ -47,7 +44,6 @@ export class DebugController {
   dispose() {
     this.unsubscribe();
     window.removeEventListener("keydown", this.onKeyDown);
-    document.body.style.removeProperty("--hud-top-left");
     this.bar.dispose();
   }
 

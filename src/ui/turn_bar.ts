@@ -1,6 +1,8 @@
 import "./turn_bar.css";
 import { element } from "./dom.ts";
 
+const OPEN_KEY = "yuan:turn-open";
+
 export interface TurnBarSeat {
   label: string;
   clan: string;
@@ -27,18 +29,25 @@ export class TurnBar {
   private seats: HTMLElement;
   private status: HTMLElement;
   private exit: HTMLButtonElement;
+  private toggle: HTMLButtonElement;
+  private open = readOpen();
 
   constructor(container: HTMLElement, onExit: () => void) {
     this.root = element("div", "turn-bar");
     const bar = element("div", "turn-bar__bar");
     this.title = element("div", "turn-bar__title");
+    this.toggle = element("button", "turn-bar__toggle");
+    this.toggle.title = "Toggle turn details";
+    this.toggle.append(this.title, element("span", "turn-bar__chevron"));
+    this.toggle.addEventListener("click", () => this.setOpen(!this.open));
     this.seats = element("div", "turn-bar__seats");
     this.status = element("span", "turn-bar__hint turn-bar__status");
     this.exit = element("button", "player-button player-button--ghost turn-bar__exit");
     this.exit.addEventListener("click", onExit);
-    bar.append(this.title, this.seats, this.status, this.exit);
+    bar.append(this.toggle, this.seats, this.status, this.exit);
     this.root.append(bar);
     container.appendChild(this.root);
+    this.render();
   }
 
   update(data: TurnBarData) {
@@ -66,5 +75,26 @@ export class TurnBar {
 
   dispose() {
     this.root.remove();
+  }
+
+  private setOpen(open: boolean) {
+    this.open = open;
+    try {
+      localStorage.setItem(OPEN_KEY, open ? "1" : "0");
+    } catch {}
+    this.render();
+  }
+
+  private render() {
+    this.root.classList.toggle("turn-bar--open", this.open);
+    this.toggle.setAttribute("aria-expanded", String(this.open));
+  }
+}
+
+function readOpen(): boolean {
+  try {
+    return localStorage.getItem(OPEN_KEY) !== "0";
+  } catch {
+    return true;
   }
 }

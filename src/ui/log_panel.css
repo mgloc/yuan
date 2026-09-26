@@ -149,6 +149,20 @@
   font-weight: 600;
 }
 
+@media (max-width: 700px) {
+  .log-panel {
+    top: var(--hud-top, 72px);
+  }
+
+  .log-panel__handle {
+    top: 0;
+  }
+
+  .log-panel__body {
+    border-top-left-radius: 8px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .log-panel,
   .log-panel__chevron::before {

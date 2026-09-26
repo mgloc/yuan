@@ -4,6 +4,7 @@ import { element } from "./dom.ts";
 import type { LogPart } from "./turn_text.ts";
 
 const OPEN_KEY = "yuan:log-open";
+const WIDE = "(min-width: 701px)";
 
 export interface TurnLogEntry {
   turn: number;
@@ -42,7 +43,7 @@ export class LogPanel {
       ...entries.map((entry) => this.entry(entry, colorOf)).reverse(),
     );
     this.badge.textContent = entries.length === 0 ? "" : String(entries.length);
-    if (reveal) {
+    if (reveal && matchMedia(WIDE).matches) {
       this.setOpen(true);
     }
   }
@@ -98,9 +99,11 @@ export class LogPanel {
 }
 
 function readOpen(): boolean {
+  const fallback = matchMedia(WIDE).matches;
   try {
-    return localStorage.getItem(OPEN_KEY) !== "0";
+    const stored = localStorage.getItem(OPEN_KEY);
+    return stored === null ? fallback : stored === "1";
   } catch {
-    return true;
+    return fallback;
   }
 }
