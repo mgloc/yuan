@@ -8,9 +8,8 @@ import { TILE_RADIUS, TileView, WATER_SURFACE_Z, tileTopZ } from "./tile_view.ts
 import { WaterView } from "./water_view.ts";
 
 const SQRT3 = Math.sqrt(3);
-const TILE_GAP = 1.05;
-const TILE_STEP_X = 1.5 * TILE_RADIUS * TILE_GAP;
-const TILE_STEP_Y = SQRT3 * TILE_RADIUS * TILE_GAP;
+const TILE_STEP_X = 1.5 * TILE_RADIUS;
+const TILE_STEP_Y = SQRT3 * TILE_RADIUS;
 
 export class TileGridView {
   root: THREE.Group;
