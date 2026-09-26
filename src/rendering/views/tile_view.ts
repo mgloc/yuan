@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { type Coord, type Tile, TileType } from "../../game_types";
-import { HIGHLIGHT_COLORS, type Highlight } from "../highlight.ts";
+import { HIGHLIGHT_STYLES, type Highlight, type HighlightStyle } from "../highlight.ts";
 import { createTileLabels } from "./tile_label.ts";
 
 export const TILE_RADIUS = 2;
@@ -29,14 +29,22 @@ const TILE_MATERIALS = new Map<TileType, THREE.Material>(
 );
 
 const OUTLINE_OUTER_RADIUS = TILE_RADIUS * 0.98;
-const OUTLINE_INNER_RADIUS = TILE_RADIUS * 0.82;
+const OUTLINE_SEGMENT_MARGIN = 0.2;
 const OUTLINE_Z = TILE_HEIGHT + TILE_BEVEL_THINKNESS + 0.01;
 const LABEL_Z = TILE_HEIGHT + TILE_BEVEL_THINKNESS + 0.005;
-const OUTLINE_GEOMETRY = new THREE.ShapeGeometry(outlineShape(OUTLINE_OUTER_RADIUS, OUTLINE_INNER_RADIUS));
-const OUTLINE_MATERIALS = new Map<Highlight, THREE.Material>(
-  Object.entries(HIGHLIGHT_COLORS).map(([highlight, color]) => [
+const OUTLINES = new Map<Highlight, { geometry: THREE.BufferGeometry; material: THREE.Material; lift: number }>(
+  Object.entries(HIGHLIGHT_STYLES).map(([highlight, style]) => [
     highlight as Highlight,
-    new THREE.MeshBasicMaterial({ color }),
+    {
+      geometry: outlineGeometry(style),
+      material: new THREE.MeshBasicMaterial({
+        color: style.color,
+        transparent: style.opacity < 1,
+        opacity: style.opacity,
+        depthWrite: style.opacity >= 1,
+      }),
+      lift: style.lift,
+    },
   ]),
 );
 
@@ -58,7 +66,7 @@ export class TileView {
       this.root.add(createTileLabels(entity.name, TILE_RADIUS, LABEL_Z));
     }
 
-    this.outline = new THREE.Mesh(OUTLINE_GEOMETRY);
+    this.outline = new THREE.Mesh();
     this.outline.position.z = OUTLINE_Z;
     this.outline.visible = false;
     this.root.add(this.outline);
@@ -67,12 +75,13 @@ export class TileView {
   }
 
   setHighlight(highlight: Highlight | null) {
-    if (highlight === null) {
-      this.outline.visible = false;
-      return;
+    const outline = highlight === null ? null : OUTLINES.get(highlight)!;
+    this.root.position.z = outline?.lift ?? 0;
+    this.outline.visible = outline !== null;
+    if (outline !== null) {
+      this.outline.geometry = outline.geometry;
+      this.outline.material = outline.material;
     }
-    this.outline.material = OUTLINE_MATERIALS.get(highlight)!;
-    this.outline.visible = true;
   }
 
   dispose(parent: THREE.Object3D) {
@@ -98,8 +107,27 @@ function tileShape(radius: number): THREE.Shape {
   return hexagon;
 }
 
-function outlineShape(outerRadius: number, innerRadius: number): THREE.Shape {
-  const ring = tileShape(outerRadius);
-  ring.holes.push(tileShape(innerRadius));
-  return ring;
+function outlineGeometry(style: HighlightStyle): THREE.BufferGeometry {
+  const innerRadius = OUTLINE_OUTER_RADIUS - style.thickness * TILE_RADIUS;
+  if (!style.segmented) {
+    const ring = tileShape(OUTLINE_OUTER_RADIUS);
+    ring.holes.push(tileShape(innerRadius));
+    return new THREE.ShapeGeometry(ring);
+  }
+  const segments = Array.from({ length: 6 }, (_, i) => {
+    const from = (i * Math.PI) / 3;
+    const to = ((i + 1) * Math.PI) / 3;
+    const point = (radius: number, t: number) =>
+      new THREE.Vector2(
+        radius * (Math.cos(from) * (1 - t) + Math.cos(to) * t),
+        radius * (Math.sin(from) * (1 - t) + Math.sin(to) * t),
+      );
+    return new THREE.Shape([
+      point(OUTLINE_OUTER_RADIUS, OUTLINE_SEGMENT_MARGIN),
+      point(OUTLINE_OUTER_RADIUS, 1 - OUTLINE_SEGMENT_MARGIN),
+      point(innerRadius, 1 - OUTLINE_SEGMENT_MARGIN),
+      point(innerRadius, OUTLINE_SEGMENT_MARGIN),
+    ]);
+  });
+  return new THREE.ShapeGeometry(segments);
 }
