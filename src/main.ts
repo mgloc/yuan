@@ -12,8 +12,8 @@ const tile = (type: TileType): Tile => ({ type });
 
 const test_grid: (Tile | null)[][] = [
   [null, tile(TileType.Mountain), null],
-  [tile(TileType.Mine), tile(TileType.Sea), tile(TileType.Mountain)],
-  [tile(TileType.Sea), tile(TileType.RiceField), tile(TileType.Forest)],
+  [tile(TileType.Mine), tile(TileType.Water), tile(TileType.Mountain)],
+  [tile(TileType.Water), tile(TileType.RiceField), tile(TileType.Forest)],
 ];
 
 new TileGridView(renderer.scene, test_grid);

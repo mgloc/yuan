@@ -14,9 +14,10 @@ const TILE_COLORS: Record<TileType, number> = {
   [TileType.RiceField]: 0xc8e66a,
   [TileType.Mine]: 0xb0906a,
   [TileType.Forest]: 0x4a8f4a,
-  [TileType.Plain]: 0xaaffaa,
-  [TileType.Sea]: 0x3366aa,
+  [TileType.Hills]: 0xaaffaa,
+  [TileType.Water]: 0x3366aa,
   [TileType.Mountain]: 0x888888,
+  [TileType.Volcano]: 0xb03a2e,
 };
 const TILE_MATERIALS = new Map<TileType, THREE.Material>(
   Object.entries(TILE_COLORS).map(([type, color]) => [

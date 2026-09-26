@@ -2,9 +2,10 @@ export const TileType = {
   RiceField: "RiceField",
   Mine: "Mine",
   Forest: "Forest",
-  Plain: "Plain",
-  Sea: "Sea",
+  Hills: "Hills",
+  Water: "Water",
   Mountain: "Mountain",
+  Volcano: "Volcano",
 } as const;
 
 export type TileType = (typeof TileType)[keyof typeof TileType];
@@ -13,7 +14,7 @@ const LAND_TILES: ReadonlySet<TileType> = new Set([
   TileType.RiceField,
   TileType.Mine,
   TileType.Forest,
-  TileType.Plain,
+  TileType.Hills,
 ]);
 
 export interface Tile {
