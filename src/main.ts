@@ -16,7 +16,7 @@ const renderer = new Renderer(width, height, document.body);
 
 const board = createTestBoard();
 const players = createTestPlayers();
-const grid = new TileGridView(renderer.scene, board.tiles, new ProceduralPieceFactory());
+const grid = new TileGridView(renderer.scene, board.tiles, new ProceduralPieceFactory(), renderer.sun.position);
 grid.updateProvinces(board.provinces, (player) => CLAN_COLORS[players.find(({ id }) => id === player)!.clan]);
 const picker = new TilePicker(renderer, grid.root);
 const panel = new InfoPanel(document.body);
@@ -25,7 +25,7 @@ new TileSelectionController(board, grid, picker, new Selection(), panel);
 const timer = new Timer();
 function loop() {
   requestAnimationFrame(loop);
-  timer.tick();
+  grid.update(timer.tick());
   renderer.render();
 }
 loop();

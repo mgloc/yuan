@@ -3,42 +3,52 @@ import { type Coord, type Tile, TileType } from "../../game_types";
 import { HIGHLIGHT_STYLES, type Highlight, type HighlightStyle } from "../highlight.ts";
 import { createTileLabels } from "./tile_label.ts";
 import { createRelief } from "./tile_relief.ts";
+import { createMinePit, mineHole } from "./tile_mine.ts";
+import { isTextured, tileTexture } from "./tile_textures.ts";
 
 export const TILE_RADIUS = 2;
 const TILE_HEIGHT = TILE_RADIUS / 10;
 const TILE_BEVEL_THINKNESS = TILE_RADIUS / 20;
 const WATER_HEIGHT = TILE_HEIGHT * 0.2;
 const tileDepth = (type: TileType) => (type === TileType.Water ? WATER_HEIGHT : TILE_HEIGHT);
-const TILE_GEOMETRIES = new Map<number, THREE.BufferGeometry>(
-  [TILE_HEIGHT, WATER_HEIGHT].map((depth) => [
+const MINE_PIT_DEPTH = TILE_HEIGHT * 1.4;
+const extrude = (shape: THREE.Shape, depth: number) =>
+  new THREE.ExtrudeGeometry(shape, {
     depth,
-    new THREE.ExtrudeGeometry(tileShape(TILE_RADIUS), {
-      depth,
-      bevelEnabled: true,
-      steps: 1,
-      bevelThickness: TILE_BEVEL_THINKNESS,
-    }),
-  ]),
-);
+    bevelEnabled: true,
+    steps: 1,
+    bevelThickness: TILE_BEVEL_THINKNESS,
+  });
+const TILE_GEOMETRY = extrude(tileShape(TILE_RADIUS), TILE_HEIGHT);
+const WATER_GEOMETRY = extrude(tileShape(TILE_RADIUS), WATER_HEIGHT);
+const MINE_GEOMETRY = extrude(withHole(tileShape(TILE_RADIUS), mineHole(TILE_RADIUS)), TILE_HEIGHT);
+const tileGeometry = (type: TileType) =>
+  type === TileType.Water ? WATER_GEOMETRY : type === TileType.Mine ? MINE_GEOMETRY : TILE_GEOMETRY;
 const TILE_COLORS: Record<TileType, number> = {
-  [TileType.RiceField]: 0xc8e66a,
-  [TileType.Mine]: 0xb0906a,
-  [TileType.Forest]: 0x4a8f4a,
-  [TileType.Hills]: 0xaaffaa,
-  [TileType.Water]: 0x3366aa,
+  [TileType.RiceField]: 0xdcdb8e,
+  [TileType.Mine]: 0xa8784a,
+  [TileType.Forest]: 0x6f9e3c,
+  [TileType.Hills]: 0xbac86c,
+  [TileType.Water]: 0xead9a6,
   [TileType.Mountain]: 0x3a3b3e,
   [TileType.Volcano]: 0x3d3634,
 };
-const TILE_MATERIALS = new Map<TileType, THREE.Material>(
-  Object.entries(TILE_COLORS).map(([type, color]) => [
-    type as TileType,
-    new THREE.MeshBasicMaterial({ color }),
-  ]),
+const TILE_MATERIALS = new Map<TileType, THREE.Material | THREE.Material[]>(
+  Object.entries(TILE_COLORS).map(([key, color]) => {
+    const type = key as TileType;
+    const side = new THREE.MeshStandardMaterial({ color, roughness: 0.9 });
+    if (!isTextured(type)) {
+      return [type, side];
+    }
+    const top = new THREE.MeshStandardMaterial({ map: tileTexture(type, TILE_RADIUS), roughness: 0.95 });
+    return [type, [top, side]];
+  }),
 );
 
 const OUTLINE_OUTER_RADIUS = TILE_RADIUS * 0.98;
 const OUTLINE_SEGMENT_MARGIN = 0.2;
 export const tileTopZ = (type: TileType) => tileDepth(type) + TILE_BEVEL_THINKNESS;
+export const WATER_SURFACE_Z = tileTopZ(TileType.Water) + 0.05;
 const OUTLINE_Z_OFFSET = 0.01;
 const LABEL_Z_OFFSET = 0.005;
 const OUTLINES = new Map<Highlight, { geometry: THREE.BufferGeometry; material: THREE.Material; lift: number }>(
@@ -67,11 +77,16 @@ export class TileView {
     this.coord = coord;
     this.root.userData.coord = coord;
 
-    const material = TILE_MATERIALS.get(entity.type)!;
-    const mesh = new THREE.Mesh(TILE_GEOMETRIES.get(tileDepth(entity.type))!, material);
+    const mesh = new THREE.Mesh(tileGeometry(entity.type), TILE_MATERIALS.get(entity.type)!);
+    if (isTextured(entity.type) && entity.type !== TileType.Mine) {
+      mesh.rotation.z = (textureTurn(coord) * Math.PI) / 3;
+    }
     this.root.add(mesh);
 
     const topZ = tileTopZ(entity.type);
+    if (entity.type === TileType.Mine) {
+      this.root.add(createMinePit(TILE_RADIUS, topZ, MINE_PIT_DEPTH));
+    }
     const relief = createRelief(entity.type, TILE_RADIUS, topZ, coord, TILE_COLORS[entity.type]);
     if (relief) {
       this.root.add(relief);
@@ -82,7 +97,7 @@ export class TileView {
     }
 
     this.outline = new THREE.Mesh();
-    this.outline.position.z = topZ + OUTLINE_Z_OFFSET;
+    this.outline.position.z = (entity.type === TileType.Water ? WATER_SURFACE_Z : topZ) + OUTLINE_Z_OFFSET;
     this.outline.visible = false;
     this.root.add(this.outline);
 
@@ -120,6 +135,15 @@ function tileShape(radius: number): THREE.Shape {
     }
   }
   return hexagon;
+}
+
+function withHole(shape: THREE.Shape, hole: THREE.Path): THREE.Shape {
+  shape.holes.push(hole);
+  return shape;
+}
+
+function textureTurn(coord: Coord): number {
+  return ((Math.imul(coord.col + 7, 2654435761) ^ Math.imul(coord.row + 3, 40503)) >>> 0) % 6;
 }
 
 function outlineGeometry(style: HighlightStyle): THREE.BufferGeometry {

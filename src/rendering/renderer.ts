@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
+const BACKGROUND_COLOR = 0xece8df;
+
 export class Renderer {
   height: number;
   width: number;
@@ -9,6 +11,7 @@ export class Renderer {
   cameraHelper: THREE.CameraHelper | null = null;
   activeCamera: THREE.PerspectiveCamera;
   scene: THREE.Scene;
+  sun: THREE.DirectionalLight;
   renderer: THREE.WebGLRenderer;
   controls: OrbitControls | null = null;
   container: HTMLElement;
@@ -25,11 +28,12 @@ export class Renderer {
     this.activeCamera = this.camera;
 
     this.scene = new THREE.Scene();
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-    const sun = new THREE.DirectionalLight(0xffffff, 1.6);
-    sun.position.set(6, -4, 10);
-    this.scene.add(sun);
-    this.scene.fog = new THREE.Fog(0xffffff, 10, 100);
+    this.scene.background = new THREE.Color(BACKGROUND_COLOR);
+    this.scene.add(new THREE.HemisphereLight(0xfffaf0, 0x8a7a55, 2.2));
+    this.sun = new THREE.DirectionalLight(0xfff4e4, 2.0);
+    this.sun.position.set(6, -4, 10);
+    this.scene.add(this.sun);
+    this.scene.fog = new THREE.Fog(BACKGROUND_COLOR, 30, 120);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(width, height);
