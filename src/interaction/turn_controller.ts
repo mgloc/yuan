@@ -1,4 +1,4 @@
-import { LAST_TURN, VOLCANO_ERUPTION_TURNS, templeTarget, type GameState, type PlayerId } from "../game_types.ts";
+import { LAST_TURN, VOLCANO_ERUPTION_TURNS, templeTarget, type GameOptions, type GameState, type PlayerId } from "../game_types.ts";
 import { resolveTurn } from "../game/turn/resolve.ts";
 import { TurnBar } from "../ui/turn_bar.ts";
 import { eventText } from "../ui/turn_text.ts";
@@ -9,14 +9,25 @@ export class TurnController {
   private game: Observable<GameState>;
   private plans: Plans;
   private colorOf: (player: PlayerId) => string;
+  private newGame: (options: GameOptions) => GameState;
   private view: TurnBar;
   private unsubscribers: (() => void)[];
 
-  constructor(container: HTMLElement, game: Observable<GameState>, plans: Plans, colorOf: (player: PlayerId) => string) {
+  constructor(
+    container: HTMLElement,
+    game: Observable<GameState>,
+    plans: Plans,
+    colorOf: (player: PlayerId) => string,
+    newGame: (options: GameOptions) => GameState,
+  ) {
     this.game = game;
     this.plans = plans;
     this.colorOf = colorOf;
-    this.view = new TurnBar(container, () => this.resolve());
+    this.newGame = newGame;
+    this.view = new TurnBar(container, {
+      onResolve: () => this.resolve(),
+      onNewGame: ({ clanPowers }) => this.restart({ ...this.game.get().options, clanPowers }),
+    });
     this.unsubscribers = [game.onChange(() => this.render()), plans.onChange(() => this.render())];
     this.render();
   }
@@ -41,6 +52,12 @@ export class TurnController {
     this.plans.clear();
   }
 
+  private restart(options: GameOptions) {
+    this.plans.clear();
+    this.view.clearLog();
+    this.game.set(this.newGame(options));
+  }
+
   private render() {
     const game = this.game.get();
     const winner = game.players.find(({ id }) => id === game.winner);
@@ -56,6 +73,7 @@ export class TurnController {
       })),
       canResolve: !game.finished && this.allSubmitted(),
       winner: winner?.clan ?? null,
+      settings: { clanPowers: game.options.clanPowers },
     });
   }
 }

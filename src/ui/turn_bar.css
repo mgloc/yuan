@@ -65,6 +65,47 @@
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
 
+.game-settings {
+  --accent: #ffb300;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  width: min(460px, calc(100vw - 32px));
+  padding: 10px 14px 12px;
+  border-radius: 8px;
+  background: rgba(20, 24, 28, 0.9);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.game-settings .turn-log__heading {
+  margin: 0;
+}
+
+.game-settings__option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.game-settings__option > span {
+  display: flex;
+  flex-direction: column;
+}
+
+.game-settings__checkbox {
+  margin: 3px 0 0;
+  accent-color: var(--accent);
+}
+
+.game-settings__hint {
+  margin: 0;
+  color: #a8b0b8;
+  font-size: 11px;
+}
+
+.game-settings[hidden],
 .turn-log[hidden] {
   display: none;
 }

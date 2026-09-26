@@ -2,7 +2,8 @@ import { Renderer } from "./rendering/renderer.ts";
 import { TileGridView } from "./rendering/views/tile_grid_view.ts";
 import { TilePicker } from "./rendering/picking.ts";
 import { Timer } from "./core/timer.ts";
-import { createTestBoard, createTestPlayers } from "./game/test_board.ts";
+import { createTestBoard, TEST_CLANS } from "./game/test_board.ts";
+import { createGame } from "./game/setup.ts";
 import { ProceduralPieceFactory } from "./rendering/pieces/procedural_factory.ts";
 import { CLAN_COLORS } from "./rendering/clan_colors.ts";
 import { Selection } from "./interaction/selection.ts";
@@ -14,21 +15,15 @@ import { PlayerBoardController } from "./interaction/player_board_controller.ts"
 import { HotseatController } from "./interaction/hotseat_controller.ts";
 import { TurnController } from "./interaction/turn_controller.ts";
 import { InfoPanel } from "./ui/info_panel.ts";
-import type { GameState, PlayerId } from "./game_types.ts";
+import type { GameOptions, GameState, PlayerId } from "./game_types.ts";
 
 const width = window.innerWidth,
   height = window.innerHeight;
 
 const renderer = new Renderer(width, height, document.body);
 
-const game = new Observable<GameState>({
-  turn: 1,
-  options: { bidding: false, clanPowers: true },
-  ...createTestBoard(),
-  players: createTestPlayers(),
-  winner: null,
-  finished: false,
-});
+const newGame = (options: GameOptions) => createGame(createTestBoard(), TEST_CLANS, options);
+const game = new Observable<GameState>(newGame({ bidding: false, clanPowers: true }));
 const clanColor = (player: PlayerId) => CLAN_COLORS[game.get().players.find(({ id }) => id === player)!.clan];
 const cssColor = (player: PlayerId) => `#${clanColor(player).toString(16).padStart(6, "0")}`;
 
@@ -44,7 +39,7 @@ new TileSelectionController(game, highlights, picker, selection, new InfoPanel(d
 
 const activePlayer = new Observable<PlayerId>(game.get().players[0].id);
 new PlayerBoardController(document.body, game, activePlayer, plans, selection, highlights, cssColor);
-new TurnController(document.body, game, plans, cssColor);
+new TurnController(document.body, game, plans, cssColor, newGame);
 if (import.meta.env.DEV) {
   new HotseatController(document.body, game.get().players, activePlayer, cssColor);
 }

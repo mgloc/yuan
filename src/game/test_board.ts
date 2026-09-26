@@ -1,4 +1,4 @@
-import { Building, Clan, TileType, type Board, type Grid, type Player, type PlayerId, type Province, type Tile } from "../game_types.ts";
+import { Building, Clan, TileType, type Board, type Grid, type PlayerId, type Province, type Tile } from "../game_types.ts";
 
 const tile = (type: TileType, name?: string): Tile => ({ type, name });
 
@@ -33,9 +33,4 @@ export function createTestBoard(): Board {
   return { tiles, provinces };
 }
 
-export function createTestPlayers(): Player[] {
-  return [
-    { id: 0, clan: Clan.Suhey, chao: 4 },
-    { id: 1, clan: Clan.Xiangi, chao: 4 },
-  ];
-}
+export const TEST_CLANS: Clan[] = [Clan.Suhey, Clan.Xiangi];
