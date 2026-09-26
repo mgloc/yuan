@@ -36,7 +36,7 @@ export class TurnController {
       return;
     }
     const { state, events } = resolveTurn(before, this.plans.all());
-    this.view.showLog(before.turn, events.map((event) => eventText(state, event)));
+    this.view.showLog(before.turn, events.map((event) => eventText(state, event)), this.colorOf);
     this.game.set(state);
     this.plans.clear();
   }

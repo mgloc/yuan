@@ -94,3 +94,7 @@
   margin: 0;
   padding-left: 16px;
 }
+
+.turn-log__clan {
+  font-weight: 600;
+}

@@ -1,5 +1,7 @@
 import "./turn_bar.css";
+import { readableOnDark } from "./color.ts";
 import { element } from "./dom.ts";
+import type { LogPart } from "./turn_text.ts";
 
 export interface TurnBarSeat {
   label: string;
@@ -63,10 +65,25 @@ export class TurnBar {
     this.logButton.hidden = this.logList.childElementCount === 0;
   }
 
-  showLog(turn: number, lines: string[]) {
+  showLog(turn: number, lines: LogPart[][], colorOf: (player: number) => string) {
     const entry = element("li", "turn-log__turn");
     const list = element("ul", "turn-log__events");
-    list.append(...lines.map((line) => element("li", "", line)));
+    list.append(
+      ...lines.map((line) => {
+        const item = element("li", "");
+        item.append(
+          ...line.map((part) => {
+            if (typeof part === "string") {
+              return part;
+            }
+            const name = element("span", "turn-log__clan", part.text);
+            name.style.color = readableOnDark(colorOf(part.player));
+            return name;
+          }),
+        );
+        return item;
+      }),
+    );
     entry.append(element("h4", "turn-log__heading", `Turn ${turn}`), list);
     this.logList.prepend(entry);
     this.logButton.hidden = false;
