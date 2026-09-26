@@ -1,7 +1,5 @@
 import "./turn_bar.css";
-import { readableOnDark } from "./color.ts";
 import { element } from "./dom.ts";
-import type { LogPart } from "./turn_text.ts";
 
 export interface TurnBarSeat {
   label: string;
@@ -21,19 +19,11 @@ export interface TurnBarData {
   winner: string | null;
 }
 
-export interface TurnLogEntry {
-  turn: number;
-  lines: LogPart[][];
-}
-
 export class TurnBar {
   root: HTMLElement;
   private title: HTMLElement;
   private seats: HTMLElement;
   private status: HTMLElement;
-  private logButton: HTMLButtonElement;
-  private log: HTMLElement;
-  private logList: HTMLElement;
 
   constructor(container: HTMLElement) {
     this.root = element("div", "turn-bar");
@@ -41,15 +31,8 @@ export class TurnBar {
     this.title = element("div", "turn-bar__title");
     this.seats = element("div", "turn-bar__seats");
     this.status = element("span", "turn-bar__hint turn-bar__status");
-    this.logButton = element("button", "player-button player-button--ghost", "Log");
-    this.logButton.addEventListener("click", () => (this.log.hidden = !this.log.hidden));
-    bar.append(this.title, this.seats, this.status, this.logButton);
-
-    this.log = element("section", "turn-log");
-    this.log.hidden = true;
-    this.logList = element("ol", "turn-log__list");
-    this.log.append(this.logList);
-    this.root.append(bar, this.log);
+    bar.append(this.title, this.seats, this.status);
+    this.root.append(bar);
     container.appendChild(this.root);
   }
 
@@ -68,43 +51,9 @@ export class TurnBar {
       }),
     );
     this.status.textContent = data.status;
-    this.logButton.hidden = this.logList.childElementCount === 0;
-  }
-
-  setLog(entries: TurnLogEntry[], colorOf: (player: number) => string, reveal: boolean) {
-    this.logList.replaceChildren(...entries.map((entry) => this.entry(entry, colorOf)).reverse());
-    this.logButton.hidden = entries.length === 0;
-    if (entries.length === 0) {
-      this.log.hidden = true;
-    } else if (reveal) {
-      this.log.hidden = false;
-    }
   }
 
   dispose() {
     this.root.remove();
-  }
-
-  private entry({ turn, lines }: TurnLogEntry, colorOf: (player: number) => string): HTMLElement {
-    const entry = element("li", "turn-log__turn");
-    const list = element("ul", "turn-log__events");
-    list.append(
-      ...lines.map((line) => {
-        const item = element("li", "");
-        item.append(
-          ...line.map((part) => {
-            if (typeof part === "string") {
-              return part;
-            }
-            const name = element("span", "turn-log__clan", part.text);
-            name.style.color = readableOnDark(colorOf(part.player));
-            return name;
-          }),
-        );
-        return item;
-      }),
-    );
-    entry.append(element("h4", "turn-log__heading", `Turn ${turn}`), list);
-    return entry;
   }
 }

@@ -1,5 +1,6 @@
 import { LAST_TURN, VOLCANO_ERUPTION_TURNS, templeTarget, type GameInfo, type PlayerId } from "../game_types.ts";
 import type { PlayerView } from "../protocol.ts";
+import { LogPanel } from "../ui/log_panel.ts";
 import { TurnBar } from "../ui/turn_bar.ts";
 import { eventText } from "../ui/turn_text.ts";
 import type { Observable } from "./observable.ts";
@@ -9,6 +10,7 @@ export class TurnController {
   private game: Observable<GameInfo>;
   private colorOf: (player: PlayerId) => string;
   private bar: TurnBar;
+  private log: LogPanel;
   private shownTurns = -1;
   private unsubscribe: () => void;
 
@@ -17,6 +19,7 @@ export class TurnController {
     this.game = game;
     this.colorOf = colorOf;
     this.bar = new TurnBar(container);
+    this.log = new LogPanel(container);
     this.unsubscribe = game.onChange(() => this.render());
     this.render();
   }
@@ -24,6 +27,7 @@ export class TurnController {
   dispose() {
     this.unsubscribe();
     this.bar.dispose();
+    this.log.dispose();
   }
 
   private render() {
@@ -32,7 +36,7 @@ export class TurnController {
     const log = view.match?.log ?? [];
     if (log.length !== this.shownTurns) {
       const entries = log.map(({ turn, events }) => ({ turn, lines: events.map((event) => eventText(game, event)) }));
-      this.bar.setLog(entries, this.colorOf, this.shownTurns >= 0 && log.length > this.shownTurns);
+      this.log.setEntries(entries, this.colorOf, this.shownTurns >= 0 && log.length > this.shownTurns);
       this.shownTurns = log.length;
     }
 

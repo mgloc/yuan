@@ -67,8 +67,8 @@ export class PlayerBoardController {
     this.render();
   }
 
-  top(): number {
-    return this.board.root.getBoundingClientRect().top;
+  get root(): HTMLElement {
+    return this.board.root;
   }
 
   dispose() {

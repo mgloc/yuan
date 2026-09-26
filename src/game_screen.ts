@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { GameInfo, PlayerId } from "./game_types.ts";
 import { Timer } from "./core/timer.ts";
+import { CameraFocusController } from "./interaction/camera_focus_controller.ts";
 import { DebugController } from "./interaction/debug_controller.ts";
 import { HighlightLayers } from "./interaction/highlight_layers.ts";
 import { Observable } from "./interaction/observable.ts";
@@ -12,6 +13,7 @@ import { TurnController } from "./interaction/turn_controller.ts";
 import type { GameClient } from "./net/game_client.ts";
 import { gameInfo } from "./net/view.ts";
 import type { PlayerView } from "./protocol.ts";
+import { CameraRig } from "./rendering/camera_rig.ts";
 import { CLAN_COLORS, clanCssColor } from "./rendering/clan_colors.ts";
 import { TilePicker } from "./rendering/picking.ts";
 import { ProceduralPieceFactory } from "./rendering/pieces/procedural_factory.ts";
@@ -57,21 +59,31 @@ export class GameScreen {
     });
     const turn = new TurnController(container, this.view, this.game, cssColor);
     const unsubscribe = this.game.onChange((game) => grid.updateProvinces(game.provinces, clanColor));
-    const frame = () =>
-      renderer.frame(new THREE.Box3().setFromObject(grid.root), {
-        top: FRAME_TOP_INSET,
-        bottom: window.innerHeight - board.top(),
-      });
-    frame();
+    const rig = new CameraRig(renderer);
+    const focus = new CameraFocusController(rig, grid, selection);
+    const bounds = new THREE.Box3().setFromObject(grid.root);
+    const layout = (apply: boolean) => {
+      const bottom = window.innerHeight - board.root.getBoundingClientRect().top;
+      container.style.setProperty("--hud-bottom", `${bottom}px`);
+      renderer.setInsets({ top: FRAME_TOP_INSET, bottom });
+      rig.frame(bounds, apply);
+    };
+    layout(true);
+    const boardSize = new ResizeObserver(() => layout(false));
+    boardSize.observe(board.root);
     const onResize = () => {
       renderer.resize(window.innerWidth, window.innerHeight);
-      frame();
+      layout(false);
     };
     window.addEventListener("resize", onResize);
 
     this.disposers.push(
       unsubscribe,
       () => window.removeEventListener("resize", onResize),
+      () => boardSize.disconnect(),
+      () => container.style.removeProperty("--hud-bottom"),
+      () => focus.dispose(),
+      () => rig.dispose(),
       () => turn.dispose(),
       () => board.dispose(),
       () => tileSelection.dispose(),
@@ -91,7 +103,9 @@ export class GameScreen {
     const timer = new Timer();
     const loop = () => {
       this.frame = requestAnimationFrame(loop);
-      grid.update(timer.tick());
+      const dt = timer.tick();
+      rig.update(dt);
+      grid.update(dt);
       renderer.render();
     };
     loop();

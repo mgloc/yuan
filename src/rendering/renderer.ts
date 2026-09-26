@@ -2,8 +2,13 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 const BACKGROUND_COLOR = 0xece8df;
-const FRAME_TILT = THREE.MathUtils.degToRad(38);
-const FRAME_FILL = 0.94;
+const FRAME_MARGIN = 0.03;
+const FIT_ITERATIONS = 4;
+
+export interface ViewInsets {
+  top: number;
+  bottom: number;
+}
 
 export class Renderer {
   height: number;
@@ -15,8 +20,10 @@ export class Renderer {
   scene: THREE.Scene;
   sun: THREE.DirectionalLight;
   renderer: THREE.WebGLRenderer;
-  controls: OrbitControls | null = null;
+  orbit: OrbitControls;
+  debugControls: OrbitControls | null = null;
   container: HTMLElement;
+  private insets: ViewInsets = { top: 0, bottom: 0 };
 
   constructor(width: number, height: number, container: HTMLElement) {
     this.width = width;
@@ -41,6 +48,7 @@ export class Renderer {
     this.renderer.setSize(width, height);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.container.appendChild(this.renderer.domElement);
+    this.orbit = new OrbitControls(this.camera, this.renderer.domElement);
 
     this.initDebug();
   }
@@ -56,14 +64,12 @@ export class Renderer {
       this.cameraHelper.visible = false;
       this.scene.add(this.cameraHelper);
 
-      this.controls = new OrbitControls(this.debugCamera, this.renderer.domElement);
-      this.controls.target.set(0, 0, 0);
-      this.controls.enableDamping = true;
-      this.controls.dampingFactor = 0.1;
-      this.controls.update();
-
-      const axesHelper = new THREE.AxesHelper(10);
-      this.scene.add(axesHelper);
+      this.debugControls = new OrbitControls(this.debugCamera, this.renderer.domElement);
+      this.debugControls.target.set(0, 0, 0);
+      this.debugControls.enableDamping = true;
+      this.debugControls.dampingFactor = 0.1;
+      this.debugControls.enabled = false;
+      this.debugControls.update();
 
       window.addEventListener("keydown", this.onKeyDown);
     }
@@ -80,8 +86,13 @@ export class Renderer {
       return;
     }
     this.activeCamera = this.activeCamera === this.camera ? this.debugCamera : this.camera;
+    const debugging = this.activeCamera !== this.camera;
+    this.orbit.enabled = !debugging;
+    if (this.debugControls) {
+      this.debugControls.enabled = debugging;
+    }
     if (this.cameraHelper) {
-      this.cameraHelper.visible = this.activeCamera !== this.camera;
+      this.cameraHelper.visible = debugging;
     }
   }
 
@@ -95,35 +106,59 @@ export class Renderer {
       }
     }
     this.renderer.setSize(width, height);
+    this.applyViewOffset();
   }
 
-  frame(box: THREE.Box3, insets: { top: number; bottom: number }) {
-    const center = box.getCenter(new THREE.Vector3());
-    const direction = new THREE.Vector3(0, -Math.sin(FRAME_TILT), Math.cos(FRAME_TILT));
-    const available = { width: this.width * FRAME_FILL, height: Math.max(1, this.height - insets.top - insets.bottom) * FRAME_FILL };
-    this.camera.clearViewOffset();
+  setInsets(insets: ViewInsets) {
+    this.insets = insets;
+    this.applyViewOffset();
+  }
 
+  fit(box: THREE.Box3, center: THREE.Vector3, direction: THREE.Vector3): { target: THREE.Vector3; distance: number } {
+    const saved = this.camera.position.clone();
+    const target = center.clone();
+    const toward = new THREE.Vector3(direction.x, direction.y, 0).normalize();
+    const polar = Math.acos(THREE.MathUtils.clamp(direction.z, -1, 1));
+    let distance = this.fitDistance(box, target, direction);
+    for (let i = 0; i < FIT_ITERATIONS; i++) {
+      const bounds = this.projectedBounds(box, target, direction, distance);
+      const imbalance = (bounds.min.y - this.insets.top - (this.height - this.insets.bottom - bounds.max.y)) / 2;
+      const unitsPerPixel = (2 * distance * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2))) / this.height;
+      target.addScaledVector(toward, (imbalance * unitsPerPixel) / Math.max(Math.cos(polar), 0.2));
+      distance = this.fitDistance(box, target, direction);
+    }
+    this.camera.position.copy(saved);
+    return { target, distance };
+  }
+
+  private fitDistance(box: THREE.Box3, target: THREE.Vector3, direction: THREE.Vector3): number {
+    const margin = { x: this.width * FRAME_MARGIN, y: this.height * FRAME_MARGIN };
     let near = 1;
     let far = 500;
     for (let i = 0; i < 30; i++) {
       const distance = (near + far) / 2;
-      const bounds = this.projectedBounds(box, center, direction, distance);
-      if (bounds.max.x - bounds.min.x <= available.width && bounds.max.y - bounds.min.y <= available.height) {
+      const bounds = this.projectedBounds(box, target, direction, distance);
+      const fits =
+        bounds.min.x >= margin.x &&
+        bounds.max.x <= this.width - margin.x &&
+        bounds.min.y >= this.insets.top + margin.y &&
+        bounds.max.y <= this.height - this.insets.bottom - margin.y;
+      if (fits) {
         far = distance;
       } else {
         near = distance;
       }
     }
-
-    const bounds = this.projectedBounds(box, center, direction, far);
-    const offsetX = (bounds.min.x + bounds.max.x) / 2 - this.width / 2;
-    const offsetY = (bounds.min.y + bounds.max.y) / 2 - (insets.top + (this.height - insets.top - insets.bottom) / 2);
-    this.camera.setViewOffset(this.width, this.height, offsetX, offsetY, this.width, this.height);
+    return far;
   }
 
-  private projectedBounds(box: THREE.Box3, center: THREE.Vector3, direction: THREE.Vector3, distance: number): THREE.Box2 {
-    this.camera.position.copy(center).addScaledVector(direction, distance);
-    this.camera.lookAt(center);
+  private applyViewOffset() {
+    this.camera.setViewOffset(this.width, this.height, 0, (this.insets.bottom - this.insets.top) / 2, this.width, this.height);
+  }
+
+  private projectedBounds(box: THREE.Box3, target: THREE.Vector3, direction: THREE.Vector3, distance: number): THREE.Box2 {
+    this.camera.position.copy(target).addScaledVector(direction, distance);
+    this.camera.lookAt(target);
     this.camera.updateMatrixWorld();
     const bounds = new THREE.Box2();
     const corner = new THREE.Vector3();
@@ -136,13 +171,14 @@ export class Renderer {
 
   dispose() {
     window.removeEventListener("keydown", this.onKeyDown);
-    this.controls?.dispose();
+    this.orbit.dispose();
+    this.debugControls?.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }
 
   render() {
-    this.controls?.update();
+    this.debugControls?.update();
     this.cameraHelper?.update();
     this.renderer.render(this.scene, this.activeCamera);
   }

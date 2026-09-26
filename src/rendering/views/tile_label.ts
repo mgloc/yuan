@@ -9,16 +9,19 @@ const OUTLINE_COLOR = "rgba(0, 0, 0, 0.7)";
 const OUTLINE_WIDTH_PX = 6;
 const SHADOW_COLOR = "rgba(0, 0, 0, 0.6)";
 const SHADOW_BLUR_PX = 8;
+const LABEL_HEIGHT = 0.22;
+const LABEL_MAX_WIDTH = 0.9;
+const LABEL_DISTANCE = 0.64;
 const LABEL_EDGE_ANGLES = [Math.PI / 6, (5 * Math.PI) / 6, (3 * Math.PI) / 2];
 
 const TEXTURES = new Map<string, { texture: THREE.CanvasTexture; aspect: number }>();
 
 export function createTileLabels(name: string, radius: number, z: number): THREE.Group {
   const { texture, aspect } = labelTexture(name.toUpperCase());
-  const height = radius * 0.14;
-  const geometry = new THREE.PlaneGeometry(height * aspect, height);
+  const width = Math.min(radius * LABEL_HEIGHT * aspect, radius * LABEL_MAX_WIDTH);
+  const geometry = new THREE.PlaneGeometry(width, width / aspect);
   const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false });
-  const distance = radius * 0.6;
+  const distance = radius * LABEL_DISTANCE;
 
   const group = new THREE.Group();
   for (const angle of LABEL_EDGE_ANGLES) {
