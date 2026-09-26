@@ -19,8 +19,22 @@ export function eventText(game: GameState, event: TurnEvent): string {
       return `${clan(event.player)}: ${event.kind} ${ROMAN[event.level]} on ${place(event.target)}`;
     case "ActionFailed":
       return `${clan(event.player)}: ${event.action} on ${place(event.target)} failed (${event.reason})`;
-    case "AttackPending":
-      return `${clan(event.player)} attacks ${place(event.target)}: combat is not implemented yet, the attack fails`;
+    case "AttackLaunched":
+      return `${clan(event.player)} attacks ${place(event.target)} with ${event.armies + event.reserve} ${event.armies + event.reserve > 1 ? "Armies" : "Army"}${event.reserve > 0 ? " (1 from reserve)" : ""}`;
+    case "AttackersClashed":
+      return `${event.players.map(clan).join(" and ")} clash over ${place(event.target)}`;
+    case "AttackWon":
+      return `${clan(event.player)} takes ${place(event.target)} with ${event.survivors} ${event.survivors > 1 ? "Armies" : "Army"} left`;
+    case "AttackLost":
+      return `${clan(event.player)} failed to take ${place(event.target)}: ${event.reason}`;
+    case "BonusAttack":
+      return `${clan(event.player)} bonus attack on ${place(event.target)} ${event.success ? "succeeded" : "failed"}`;
+    case "ProvinceCaptured":
+      return `${clan(event.player)} now controls ${place(event.coord)}`;
+    case "ProvinceFreed":
+      return `${place(event.coord)} is now free`;
+    case "GroupDestroyed":
+      return `${clan(event.defender)} lost ${places(event.coords)} (no City left)${event.by === null ? ": now free" : ` to ${clan(event.by)}`}`;
     case "VillagesPlaced":
       return `${clan(event.player)} placed Villages on ${places(event.coords)}`;
     case "ProvinceContested":

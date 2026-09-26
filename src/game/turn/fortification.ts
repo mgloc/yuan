@@ -5,6 +5,7 @@ import { reserve } from "./pools.ts";
 export function resolveFortification(context: TurnContext) {
   for (const action of activeActions(context, ActionType.Fortification)) {
     if (followsAttack(action)) {
+      action.order.fortificationDeferred = true;
       continue;
     }
     fortify(context, action);
@@ -14,7 +15,7 @@ export function resolveFortification(context: TurnContext) {
 export function resolveFortificationAfterAttack(context: TurnContext) {
   for (const action of activeActions(context, ActionType.Fortification)) {
     const { order } = action;
-    if (!followsAttack(action) && !order.attackSucceeded) {
+    if (!order.fortificationDeferred) {
       continue;
     }
     if (order.attackSucceeded) {

@@ -8,7 +8,14 @@ export type TurnEvent =
   | { type: "Paid"; player: PlayerId; amount: number }
   | { type: "ActionResolved"; player: PlayerId; kind: ActionKind; level: ActionLevel; target: Coord }
   | { type: "ActionFailed"; player: PlayerId; action: ActionType; target: Coord; reason: string }
-  | { type: "AttackPending"; player: PlayerId; target: Coord }
+  | { type: "AttackLaunched"; player: PlayerId; target: Coord; armies: number; reserve: number }
+  | { type: "AttackersClashed"; target: Coord; players: PlayerId[] }
+  | { type: "AttackWon"; player: PlayerId; target: Coord; survivors: number }
+  | { type: "AttackLost"; player: PlayerId; target: Coord; reason: string }
+  | { type: "BonusAttack"; player: PlayerId; target: Coord; success: boolean }
+  | { type: "ProvinceCaptured"; player: PlayerId; coord: Coord }
+  | { type: "ProvinceFreed"; coord: Coord }
+  | { type: "GroupDestroyed"; defender: PlayerId; coords: Coord[]; by: PlayerId | null }
   | { type: "VillagesPlaced"; player: PlayerId; coords: Coord[] }
   | { type: "ProvinceContested"; coord: Coord; players: PlayerId[] }
   | { type: "PoolExhausted"; player: PlayerId; piece: Piece; missing: number }

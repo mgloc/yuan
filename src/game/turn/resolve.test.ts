@@ -167,7 +167,7 @@ describe("fortification", () => {
   });
 
   it("refunds a Fortification planned after an attack that did not succeed", () => {
-    const game = testGame(["M F"], { provinces: { "0,0": city(0, { armies: 1 }), "1,0": village(1) } });
+    const game = testGame(["M F"], { provinces: { "0,0": city(0, { armies: 1 }), "1,0": village(1, { armies: 1 }) } });
     const { state, events } = resolve(game, [[0, plan(at(1), { Militarisation: 1, Fortification: 2 })]]);
     expect(events).toContainEqual(expect.objectContaining({ type: "Refunded", amount: 4 }));
     expect(chao(state, 0)).toBe(10);

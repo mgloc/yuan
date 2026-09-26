@@ -25,16 +25,3 @@ export function resolveRecruitment(context: TurnContext) {
     }
   }
 }
-
-export function resolveAttacks(context: TurnContext) {
-  for (const { order, target, province } of activeActions(context, ActionType.Militarisation)) {
-    if (province.owner === order.player) {
-      continue;
-    }
-    if (province.owner === null) {
-      context.events.push({ type: "ActionFailed", player: order.player, action: ActionType.Militarisation, target, reason: "free Province" });
-      continue;
-    }
-    context.events.push({ type: "AttackPending", player: order.player, target });
-  }
-}

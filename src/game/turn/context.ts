@@ -10,6 +10,7 @@ export interface Order {
   costs: Record<ActionType, number>;
   income: number;
   attackSucceeded: boolean;
+  fortificationDeferred: boolean;
 }
 
 export interface TurnContext {
@@ -31,6 +32,7 @@ export function createContext(state: GameState, plans: ReadonlyMap<PlayerId, Pla
         costs: { [ActionType.Development]: 0, [ActionType.Fortification]: 0, [ActionType.Militarisation]: 0 },
         income: 0,
         attackSucceeded: false,
+        fortificationDeferred: false,
       };
     }),
     events: [],
