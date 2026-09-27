@@ -107,6 +107,12 @@ export class Room {
     return member;
   }
 
+  rename(token: string, name: string) {
+    const player = this.actor(token);
+    this.requireLobby();
+    this.state.members[player].name = cleanName(name, player);
+  }
+
   actor(token: string, as?: PlayerId): PlayerId {
     const { members, debug, host } = this.state;
     const member = members.find((candidate) => candidate.token === token);

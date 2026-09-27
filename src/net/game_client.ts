@@ -67,6 +67,10 @@ export class GameClient {
     this.send(RoomAction.ChooseClan, { clan });
   }
 
+  rename(name: string) {
+    this.send(RoomAction.Rename, { name });
+  }
+
   start() {
     this.send(RoomAction.Start);
   }

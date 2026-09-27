@@ -190,6 +190,10 @@ function actionFor(action: Exclude<RoomAction, typeof RoomAction.Delete>, body: 
       return (room) => room.backToLobby(token);
     case RoomAction.Leave:
       return (room) => room.leave(token);
+    case RoomAction.Rename: {
+      const name = nameOf(body);
+      return (room) => room.rename(token, name);
+    }
     case RoomAction.PlaceTile: {
       const tile = body.tile;
       const anchor = body.anchor;

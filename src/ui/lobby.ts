@@ -38,6 +38,7 @@ export interface LobbyHandlers {
   onLoadMap: (file: File) => void;
   onLaunch: () => void;
   onAddPlayer: () => void;
+  onRename: (name: string) => void;
   onCopyLink: () => void;
   onExit: () => void;
 }
@@ -56,6 +57,7 @@ export class Lobby {
   private handlers: LobbyHandlers;
   private maps: { mode: MapMode; input: HTMLInputElement; label: HTMLElement }[];
   private addPlayer: HTMLButtonElement;
+  private nameInput: HTMLInputElement;
   private mapFile: HTMLElement;
   private loadMap: HTMLButtonElement;
   private mapSummary: HTMLElement;
@@ -81,6 +83,20 @@ export class Lobby {
 
     this.badges = element("div", "screen__row");
     this.players = element("ul", "lobby__players");
+    this.nameInput = element("input", "lobby__name-input");
+    this.nameInput.maxLength = 24;
+    this.nameInput.placeholder = "Your name";
+    this.nameInput.setAttribute("aria-label", "Your name");
+    this.nameInput.title = "Click to change your name";
+    this.nameInput.addEventListener("change", () => handlers.onRename(this.nameInput.value));
+    this.nameInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        this.nameInput.blur();
+      } else if (event.key === "Escape") {
+        this.nameInput.value = this.nameInput.defaultValue;
+        this.nameInput.blur();
+      }
+    });
     this.addPlayer = element("button", "player-button player-button--ghost", "Add player");
     this.addPlayer.addEventListener("click", handlers.onAddPlayer);
     const playersSection = element("section", "screen__section");
@@ -170,7 +186,15 @@ export class Lobby {
       ...data.seats.map((seat) => {
         const row = element("li", "lobby__player");
         row.style.setProperty("--seat-color", seat.color);
-        row.append(element("span", "lobby__name", seat.name));
+        if (seat.you) {
+          this.nameInput.defaultValue = seat.name;
+          if (document.activeElement !== this.nameInput) {
+            this.nameInput.value = seat.name;
+          }
+          row.append(this.nameInput);
+        } else {
+          row.append(element("span", "lobby__name", seat.name));
+        }
         if (seat.host) {
           row.append(element("span", "lobby__badge", "Host"));
         }

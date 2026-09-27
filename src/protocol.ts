@@ -129,6 +129,7 @@ export const RoomAction = {
   Restart: "restart",
   Lobby: "lobby",
   Leave: "leave",
+  Rename: "rename",
   Delete: "delete",
   PlaceTile: "place-tile",
   SetCity: "set-city",

@@ -367,3 +367,15 @@ describe("imported maps", () => {
     expect(room.view(0).match!.provinces.flat().filter((province) => province?.temple)).toHaveLength(1);
   });
 });
+
+describe("renaming", () => {
+  it("lets players change their name in the lobby only", () => {
+    const { room, members, host } = lobby(2);
+    room.rename(members[1].token, "  Ada  ");
+    room.rename(host, "");
+    expect(room.view(0).seats.map(({ name }) => name)).toEqual(["Player 1", "Ada"]);
+    expect(() => room.rename("forged", "Eve")).toThrow("Unknown player");
+    launch(room, members.map(({ token }) => token));
+    expect(() => room.rename(host, "Late")).toThrow("already started");
+  });
+});

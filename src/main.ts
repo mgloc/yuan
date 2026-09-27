@@ -171,6 +171,10 @@ function route(current: GameClient, view: PlayerView) {
       },
       onLaunch: () => current.start(),
       onAddPlayer: () => current.addPlayer(),
+      onRename: (name) => {
+        saveName(name.trim());
+        current.rename(name);
+      },
       onCopyLink: () => navigator.clipboard?.writeText(`${location.origin}${location.pathname}?game=${view.code}`),
       onExit: () => exit(current),
     });
@@ -210,8 +214,19 @@ const code = params.get("game")?.trim().toUpperCase() ?? "";
 const session = code === "" ? null : loadSession(code);
 if (params.has("maker")) {
   showMapMaker();
-} else if (session === null) {
-  showLanding(code, "");
-} else {
+} else if (session !== null) {
   enter(session);
+} else if (code !== "") {
+  joinFromLink(code);
+} else {
+  showLanding("", "");
+}
+
+async function joinFromLink(code: string) {
+  showBackdrop();
+  try {
+    enter(await joinRoom(code, { name: loadName() }));
+  } catch (error) {
+    showLanding(code, (error as Error).message);
+  }
 }
