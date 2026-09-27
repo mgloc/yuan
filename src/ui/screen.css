@@ -16,10 +16,6 @@ body {
   background: radial-gradient(circle at 30% 20%, #f6f3ec, #ece8df 55%, #ddd6c6);
 }
 
-.menu-backdrop[hidden] {
-  display: none;
-}
-
 .screen {
   --accent: #ffb300;
   box-sizing: border-box;

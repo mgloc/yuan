@@ -3,7 +3,7 @@ import { MapMode } from "../protocol.ts";
 import { element } from "./dom.ts";
 
 const MAP_CHOICES: readonly { mode: MapMode; title: string; hint: string }[] = [
-  { mode: MapMode.Prebuilt, title: "Prebuilt map", hint: "Start right away on a ready-made map" },
+  { mode: MapMode.Prebuilt, title: "Prebuilt map", hint: "A ready-made map: agree on the Temples, then play" },
   { mode: MapMode.Custom, title: "Build it together", hint: "Place Territory tiles in turns, then agree on Cities and Temples" },
   { mode: MapMode.Imported, title: "Your map", hint: "Play a map exported from the map maker (.json)" },
 ];

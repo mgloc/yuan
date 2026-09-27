@@ -40,7 +40,7 @@ export class MenuBackdrop {
   }
 
   show() {
-    this.canvas.hidden = false;
+    this.canvas.style.display = "block";
     if (!this.running) {
       this.running = true;
       this.last = performance.now();
@@ -49,7 +49,7 @@ export class MenuBackdrop {
   }
 
   hide() {
-    this.canvas.hidden = true;
+    this.canvas.style.display = "none";
     this.running = false;
     cancelAnimationFrame(this.frame);
   }
