@@ -82,7 +82,7 @@ function capture(board: Board, target: Coord, player: PlayerId, state: TargetSta
   state.building = joinsCity(board, target, player, settlesAround) ? Building.Village : Building.City;
 }
 
-function joinsCity(board: Board, target: Coord, player: PlayerId, settlesAround: boolean): boolean {
+export function joinsCity(board: Board, target: Coord, player: PlayerId, settlesAround: boolean): boolean {
   const around = settlesAround ? adjacentProvinces(board, target).filter((coord) => isFree(board, coord)) : [];
   const settled = [target, ...around];
   return settled.some((coord) =>

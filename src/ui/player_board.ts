@@ -4,24 +4,23 @@ import { element } from "./dom.ts";
 import { PlanCard, type PlanCardHandlers } from "./plan_card.ts";
 import type { PlayerBoardData } from "./player_board_data.ts";
 import { ResourcesCard } from "./resources_card.ts";
-import { TargetCard, type TargetCardHandlers } from "./target_card.ts";
 
 const OPEN_KEY = "yuan:board-open";
 
-export type PlayerBoardHandlers = TargetCardHandlers & PlanCardHandlers;
+export type PlayerBoardHandlers = PlanCardHandlers;
 
 export class PlayerBoard {
   root: HTMLElement;
   private handle: HTMLButtonElement;
   private summary: HTMLElement;
-  private resources = new ResourcesCard();
+  private resources: ResourcesCard;
   private clan: ClanPanel;
-  private target: TargetCard;
   private plan: PlanCard;
   private open = readOpen();
 
   constructor(container: HTMLElement, side: HTMLElement, handlers: PlayerBoardHandlers) {
     this.clan = new ClanPanel(side);
+    this.resources = new ResourcesCard(container);
     this.root = element("footer", "player-board");
     this.handle = element("button", "player-board__handle");
     this.handle.setAttribute("aria-label", "Toggle the plan board (B)");
@@ -31,12 +30,8 @@ export class PlayerBoard {
     this.handle.addEventListener("click", () => this.setOpen(!this.open));
 
     const cards = element("div", "player-board__cards");
-    this.target = new TargetCard(handlers);
     this.plan = new PlanCard(handlers);
-    this.resources.root.classList.add("player-card--resources");
-    this.target.root.classList.add("player-card--target");
-    this.plan.root.classList.add("player-card--plan");
-    cards.append(this.resources.root, this.target.root, this.plan.root);
+    cards.append(this.plan.root);
     const drawer = element("div", "player-board__drawer");
     drawer.append(cards);
     this.root.append(this.handle, drawer);
@@ -50,13 +45,13 @@ export class PlayerBoard {
     this.summary.textContent = summaryText(data);
     this.resources.update(data);
     this.clan.update(data);
-    this.target.update(data);
     this.plan.update(data);
   }
 
   dispose() {
     window.removeEventListener("keydown", this.onKeyDown);
     this.clan.dispose();
+    this.resources.dispose();
     this.root.remove();
   }
 

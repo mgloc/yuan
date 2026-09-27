@@ -9,15 +9,25 @@ import { disposeObject } from "../dispose.ts";
 import { hexToWorld } from "../hex_layout.ts";
 import { WaterView } from "./water_view.ts";
 
+const FLAG_SCALE = 1.6;
+const FLAG_ANGLE = Math.PI / 2;
+const FLAG_DISTANCE = 1.0;
+const FLAG_SWAY = 0.12;
+const FLAG_SWAY_SPEED = 1.6;
 
 export class TileGridView {
   root: THREE.Group;
   views = new Map<string, TileView>();
   provinceViews = new Map<string, ProvinceView>();
   water: WaterView | null = null;
+  private factory: PieceFactory;
+  private flag: THREE.Object3D | null = null;
+  private flagKey: string | null = null;
+  private time = 0;
 
   constructor(parent: THREE.Object3D, grid: Grid<Tile>, factory: PieceFactory, sunDirection: THREE.Vector3, origin: Coord | null = null) {
     this.root = new THREE.Group();
+    this.factory = factory;
     const waterCenters: THREE.Vector3[] = [];
 
     grid.forEach((grid_row, row) =>
@@ -66,8 +76,35 @@ export class TileGridView {
     });
   }
 
+  setFlag(coord: Coord | null, color: number) {
+    const key = coord === null ? null : `${coordKey(coord)}:${color}`;
+    if (key === this.flagKey) {
+      return;
+    }
+    this.flagKey = key;
+    if (this.flag !== null) {
+      this.flag.removeFromParent();
+      this.flag = null;
+    }
+    const province = coord === null ? undefined : this.provinceViews.get(coordKey(coord));
+    const tile = coord === null ? undefined : this.views.get(coordKey(coord));
+    if (province === undefined || tile === undefined) {
+      return;
+    }
+    const flag = this.factory.flag(color);
+    flag.scale.setScalar(FLAG_SCALE);
+    flag.traverse((object) => (object.raycast = () => {}));
+    flag.position.set(Math.cos(FLAG_ANGLE) * FLAG_DISTANCE, Math.sin(FLAG_ANGLE) * FLAG_DISTANCE, province.root.position.z);
+    tile.root.add(flag);
+    this.flag = flag;
+  }
+
   update(dt: number) {
     this.water?.update(dt);
+    this.time += dt;
+    if (this.flag !== null) {
+      this.flag.rotation.z = Math.sin(this.time * FLAG_SWAY_SPEED) * FLAG_SWAY;
+    }
   }
 
   setHighlights(highlights: ReadonlyMap<string, Highlight>) {
@@ -75,6 +112,8 @@ export class TileGridView {
   }
 
   dispose(parent: THREE.Object3D) {
+    this.flag?.removeFromParent();
+    this.flag = null;
     this.water?.dispose(this.root);
     this.water = null;
     this.views.forEach((view) => view.dispose(this.root));

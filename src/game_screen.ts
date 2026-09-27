@@ -56,6 +56,13 @@ export class GameScreen {
     const board = new PlayerBoardController(container, side, this.view, this.game, this.draft, selection, highlights, cssColor, {
       submit: (plan) => client.submit(plan),
       edit: () => client.edit(),
+      flag: (target) => grid.setFlag(target, clanColor(this.view.get().you)),
+    });
+    const unsubscribeDouble = picker.onDoublePick((coord) => {
+      if (coord !== null) {
+        selection.set(coord);
+        board.targetAt(coord);
+      }
     });
     const turn = new TurnController(container, this.view, this.game, cssColor, onExit);
     const unsubscribe = this.game.onChange((game) => grid.updateProvinces(game.provinces, clanColor));
@@ -66,6 +73,7 @@ export class GameScreen {
 
     this.disposers.push(
       unsubscribe,
+      unsubscribeDouble,
       () => focus.dispose(),
       () => turn.dispose(),
       () => board.dispose(),

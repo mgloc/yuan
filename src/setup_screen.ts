@@ -16,7 +16,7 @@ import { ProceduralPieceFactory } from "./rendering/pieces/procedural_factory.ts
 import { PlanePicker } from "./rendering/plane_picker.ts";
 import { TileGhostView } from "./rendering/views/tile_ghost_view.ts";
 import { TileGridView } from "./rendering/views/tile_grid_view.ts";
-import { TILE_BOTTOM_Z, TILE_COLORS } from "./rendering/views/tile_view.ts";
+import { TILE_BOTTOM_Z, TILE_HINT_COLORS } from "./rendering/views/tile_view.ts";
 import { Stage } from "./stage.ts";
 import { element } from "./ui/dom.ts";
 import { SetupPanel, type SetupBidding, type SetupCapital, type SetupPanelData, type SetupSeat, type SetupTile } from "./ui/setup_panel.ts";
@@ -367,7 +367,7 @@ function tileData(id: TileGroupId): SetupTile {
   return {
     id,
     cells: group.cells.map((tile) => ({
-      color: `#${TILE_COLORS[tile.type].toString(16).padStart(6, "0")}`,
+      color: `#${TILE_HINT_COLORS[tile.type].toString(16).padStart(6, "0")}`,
       label: tile.name ? `${tile.name} (${tile.type})` : tile.type,
     })),
   };

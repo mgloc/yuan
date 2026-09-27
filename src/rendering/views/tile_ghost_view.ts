@@ -1,13 +1,13 @@
 import * as THREE from "three";
 import type { Coord, Tile, TileType } from "../../game_types.ts";
 import { hexToWorld, TILE_RADIUS } from "../hex_layout.ts";
-import { TILE_COLORS } from "./tile_view.ts";
+import { TILE_HINT_COLORS } from "./tile_view.ts";
 
 const GHOST_SCALE = 0.94;
 const GHOST_Z = 0.45;
 const GHOST_OPACITY = 0.75;
-const INVALID_COLOR = 0xd9534f;
-const INVALID_OPACITY = 0.6;
+const INVALID_COLOR = 0x121212;
+const INVALID_OPACITY = 0.55;
 
 export interface GhostCell {
   coord: Coord;
@@ -52,7 +52,7 @@ export class TileGhostView {
     let material = this.materials.get(key);
     if (material === undefined) {
       material = new THREE.MeshBasicMaterial({
-        color: type === null ? INVALID_COLOR : TILE_COLORS[type],
+        color: type === null ? INVALID_COLOR : TILE_HINT_COLORS[type],
         transparent: true,
         opacity: type === null ? INVALID_OPACITY : GHOST_OPACITY,
         depthWrite: false,

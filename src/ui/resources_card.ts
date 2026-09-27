@@ -1,4 +1,4 @@
-import { card, element } from "./dom.ts";
+import { element } from "./dom.ts";
 import type { PlayerBoardData } from "./player_board_data.ts";
 
 const TILE_LABELS: Record<string, string> = {
@@ -11,11 +11,15 @@ export class ResourcesCard {
   root: HTMLElement;
   private list: HTMLElement;
 
-  constructor() {
-    const { root, body } = card("Resources");
-    this.root = root;
+  constructor(container: HTMLElement) {
+    this.root = element("aside", "resources-box");
     this.list = element("dl", "resource-list");
-    body.append(this.list);
+    this.root.append(this.list);
+    container.appendChild(this.root);
+  }
+
+  dispose() {
+    this.root.remove();
   }
 
   update(data: PlayerBoardData) {

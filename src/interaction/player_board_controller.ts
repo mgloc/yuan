@@ -1,20 +1,22 @@
-import type { GameInfo, Plan, PlayerId } from "../game_types.ts";
+import { isLand, type ActionLevel, type ActionType, type Coord, type GameInfo, type Plan, type PlayerId } from "../game_types.ts";
 import { emptyPlan } from "../game/plan/plan.ts";
-import { coordKey } from "../game/tile/coords.ts";
+import { coordKey, tileAt } from "../game/tile/coords.ts";
 import type { PlayerView } from "../protocol.ts";
 import { Highlight } from "../rendering/highlight.ts";
 import { PlayerBoard } from "../ui/player_board.ts";
-import { playerBoardData } from "../ui/player_board_data.ts";
+import { playerBoardData, type PlayerBoardData } from "../ui/player_board_data.ts";
 import type { HighlightLayers } from "./highlight_layers.ts";
 import type { Observable } from "./observable.ts";
 import type { PlanDraft } from "./plan_draft.ts";
 import type { Selection } from "./selection.ts";
 
 const TARGET_LAYER = "target";
+const EFFECT_LAYER = "effect";
 
 export interface PlanActions {
   submit: (plan: Plan) => void;
   edit: () => void;
+  flag: (target: Coord | null) => void;
 }
 
 export class PlayerBoardController {
@@ -24,8 +26,11 @@ export class PlayerBoardController {
   private selection: Selection;
   private highlights: HighlightLayers;
   private colorOf: (player: PlayerId) => string;
+  private flag: (target: Coord | null) => void;
   private board: PlayerBoard;
   private unsubscribers: (() => void)[];
+  private data: PlayerBoardData | null = null;
+  private preview: { type: ActionType; level: ActionLevel } | null = null;
 
   constructor(
     container: HTMLElement,
@@ -44,6 +49,7 @@ export class PlayerBoardController {
     this.selection = selection;
     this.highlights = highlights;
     this.colorOf = colorOf;
+    this.flag = actions.flag;
 
     this.board = new PlayerBoard(container, side, {
       onTarget: () => draft.setTarget(selection.get()),
@@ -58,6 +64,10 @@ export class PlayerBoardController {
         }
         actions.edit();
       },
+      onPreview: (type, level) => {
+        this.preview = level === null ? null : { type, level };
+        this.renderEffects();
+      },
     });
 
     this.unsubscribers = [
@@ -68,6 +78,16 @@ export class PlayerBoardController {
     this.render();
   }
 
+  targetAt(coord: Coord) {
+    const view = this.view.get();
+    const seat = view.seats.find(({ id }) => id === view.you);
+    const tile = tileAt(this.game.get(), coord);
+    if (seat === undefined || seat.submitted || this.game.get().finished || tile === null || !isLand(tile)) {
+      return;
+    }
+    this.draft.setTarget(coord);
+  }
+
   get root(): HTMLElement {
     return this.board.root;
   }
@@ -75,6 +95,8 @@ export class PlayerBoardController {
   dispose() {
     this.unsubscribers.forEach((unsubscribe) => unsubscribe());
     this.highlights.set(TARGET_LAYER, new Map());
+    this.highlights.set(EFFECT_LAYER, new Map());
+    this.flag(null);
     this.board.dispose();
   }
 
@@ -86,9 +108,19 @@ export class PlayerBoardController {
     }
     const plan = seat.submitted && view.match.plan !== null ? view.match.plan : this.draft.get();
     const player = { id: seat.id, clan: seat.clan!, chao: view.match.chao };
-    this.board.update(
-      playerBoardData(this.game.get(), player, plan, this.selection.get(), this.colorOf(seat.id), seat.submitted),
-    );
+    this.data = playerBoardData(this.game.get(), player, plan, this.selection.get(), this.colorOf(seat.id), seat.submitted);
+    this.board.update(this.data);
     this.highlights.set(TARGET_LAYER, new Map(plan.target === null ? [] : [[coordKey(plan.target), Highlight.Target]]));
+    this.flag(plan.target);
+    this.renderEffects();
+  }
+
+  private renderEffects() {
+    const rows = this.data?.plan.rows ?? [];
+    const shown = this.preview === null
+      ? rows.flatMap(({ level, effects }) => (level === null ? [] : [effects[level]]))
+      : rows.filter(({ type }) => type === this.preview!.type).map(({ effects }) => effects[this.preview!.level]);
+    const coords = shown.flatMap(({ coords }) => coords);
+    this.highlights.set(EFFECT_LAYER, new Map(coords.map((coord) => [coordKey(coord), Highlight.Effect])));
   }
 }

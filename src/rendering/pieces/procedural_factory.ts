@@ -26,6 +26,14 @@ const TEMPLE_POST = new THREE.BoxGeometry(0.06, 0.06, 0.3);
 const TEMPLE_TOP_BEAM = new THREE.BoxGeometry(0.44, 0.08, 0.05);
 const TEMPLE_LOW_BEAM = new THREE.BoxGeometry(0.34, 0.05, 0.04);
 
+const FLAG_POLE_HEIGHT = 1.4;
+const FLAG_POLE = upright(new THREE.CylinderGeometry(0.025, 0.03, FLAG_POLE_HEIGHT, 10));
+const FLAG_FINIAL = new THREE.SphereGeometry(0.05, 12, 8);
+const FLAG_BANNER = new THREE.BoxGeometry(0.62, 0.03, 0.4);
+const FLAG_TRIM = new THREE.BoxGeometry(0.64, 0.035, 0.05);
+const FLAG_BASE = upright(new THREE.CylinderGeometry(0.1, 0.12, 0.05, 12));
+const FLAG_TRIM_COLOR = 0xf2e6c8;
+
 export class ProceduralPieceFactory implements PieceFactory {
   private materials = new Map<string, THREE.Material>();
 
@@ -70,6 +78,21 @@ export class ProceduralPieceFactory implements PieceFactory {
       at(new THREE.Mesh(TEMPLE_POST, material), 0.14, 0, 0.15),
       at(new THREE.Mesh(TEMPLE_LOW_BEAM, material), 0, 0, 0.24),
       at(new THREE.Mesh(TEMPLE_TOP_BEAM, material), 0, 0, 0.32),
+    );
+  }
+
+  flag(color: number): THREE.Object3D {
+    const wood = this.material(WOOD_COLOR);
+    const bronze = this.material(BRONZE_COLOR, 0.3);
+    const banner = this.material(color);
+    const trim = this.material(FLAG_TRIM_COLOR);
+    const top = FLAG_POLE_HEIGHT - 0.24;
+    return group(
+      at(new THREE.Mesh(FLAG_BASE, bronze), 0, 0, 0.025),
+      at(new THREE.Mesh(FLAG_POLE, wood), 0, 0, FLAG_POLE_HEIGHT / 2),
+      at(new THREE.Mesh(FLAG_FINIAL, bronze), 0, 0, FLAG_POLE_HEIGHT + 0.03),
+      at(new THREE.Mesh(FLAG_BANNER, banner), 0.33, 0, top),
+      at(new THREE.Mesh(FLAG_TRIM, trim), 0.33, 0, top - 0.2),
     );
   }
 

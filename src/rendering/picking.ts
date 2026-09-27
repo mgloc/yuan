@@ -11,6 +11,7 @@ export class TilePicker {
   private pointer = new THREE.Vector2();
   private downPosition: { x: number; y: number } | null = null;
   private listeners = new Set<PickListener>();
+  private doubleListeners = new Set<PickListener>();
   private renderer: Renderer;
   private target: THREE.Object3D;
 
@@ -20,6 +21,12 @@ export class TilePicker {
     const canvas = renderer.renderer.domElement;
     canvas.addEventListener("pointerdown", this.onPointerDown);
     canvas.addEventListener("pointerup", this.onPointerUp);
+    canvas.addEventListener("dblclick", this.onDoubleClick);
+  }
+
+  onDoublePick(listener: PickListener): () => void {
+    this.doubleListeners.add(listener);
+    return () => this.doubleListeners.delete(listener);
   }
 
   onPick(listener: PickListener): () => void {
@@ -31,7 +38,9 @@ export class TilePicker {
     const canvas = this.renderer.renderer.domElement;
     canvas.removeEventListener("pointerdown", this.onPointerDown);
     canvas.removeEventListener("pointerup", this.onPointerUp);
+    canvas.removeEventListener("dblclick", this.onDoubleClick);
     this.listeners.clear();
+    this.doubleListeners.clear();
   }
 
   private onPointerDown = (event: PointerEvent) => {
@@ -51,7 +60,12 @@ export class TilePicker {
     this.listeners.forEach((listener) => listener(coord));
   };
 
-  private pick(event: PointerEvent): Coord | null {
+  private onDoubleClick = (event: MouseEvent) => {
+    const coord = this.pick(event);
+    this.doubleListeners.forEach((listener) => listener(coord));
+  };
+
+  private pick(event: MouseEvent): Coord | null {
     const rect = this.renderer.renderer.domElement.getBoundingClientRect();
     this.pointer.set(
       ((event.clientX - rect.left) / rect.width) * 2 - 1,

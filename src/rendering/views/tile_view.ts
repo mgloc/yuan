@@ -34,6 +34,15 @@ export const TILE_COLORS: Record<TileType, number> = {
   [TileType.Mountain]: 0x3a3b3e,
   [TileType.Volcano]: 0x3d3634,
 };
+export const TILE_HINT_COLORS: Record<TileType, number> = {
+  [TileType.RiceField]: 0xe6d25a,
+  [TileType.Mine]: 0xa8784a,
+  [TileType.Forest]: 0x4f9a3a,
+  [TileType.Hills]: 0xb5cf6a,
+  [TileType.Water]: 0x3f8fdc,
+  [TileType.Mountain]: 0x8c9096,
+  [TileType.Volcano]: 0xd8392b,
+};
 const TILE_MATERIALS = new Map<TileType, THREE.Material | THREE.Material[]>(
   Object.entries(TILE_COLORS).map(([key, color]) => {
     const type = key as TileType;

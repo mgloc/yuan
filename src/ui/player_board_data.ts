@@ -1,7 +1,6 @@
 import {
   ACTION_LEVELS,
   ActionType,
-  Building,
   CLAN_CHAO_MODIFIER,
   PASS_INCOME,
   RESOURCE_TILE,
@@ -16,13 +15,12 @@ import {
 } from "../game_types.ts";
 import { actionCost, controlledTemples, resources } from "../game/plan/economy.ts";
 import { isPassing, planCost } from "../game/plan/plan.ts";
+import { planEffects, type LevelEffects } from "../game/plan/effects.ts";
 import { planBlockers, type LevelBlockers } from "../game/plan/feasibility.ts";
 import { previewPlan } from "../game/plan/preview.ts";
 import { provinceAt, tileAt } from "../game/tile/coords.ts";
 import { planErrors } from "../game/turn/validation.ts";
 import { CLAN_POWERS } from "./clan_text.ts";
-
-const RAMPART_LABELS = ["", "fortified", "indestructible"] as const;
 
 export interface ResourceEntry {
   tile: TileType;
@@ -37,6 +35,7 @@ export interface PlanRow {
   kind: ActionKind | null;
   conditional: boolean;
   blockers: LevelBlockers;
+  effects: LevelEffects;
 }
 
 export interface PlayerBoardData {
@@ -44,7 +43,7 @@ export interface PlayerBoardData {
   resources: ResourceEntry[];
   temples: { count: number; target: number };
   chao: number;
-  target: { title: string; details: string } | null;
+  target: { title: string } | null;
   canTarget: boolean;
   locked: boolean;
   finished: boolean;
@@ -71,6 +70,7 @@ export function playerBoardData(
   const counts = resources(game, player.id);
   const preview = previewPlan(game, player.id, plan);
   const blockers = planBlockers(game, player.id, plan);
+  const effects = planEffects(game, player.id, plan);
   const total = planCost(plan, counts);
   const passing = isPassing(plan);
 
@@ -84,7 +84,7 @@ export function playerBoardData(
     resources: Object.values(ActionType).map((type) => ({ tile: RESOURCE_TILE[type], count: counts[type], discounts: type })),
     temples: { count: controlledTemples(game, player.id), target: templeTarget(game.turn) },
     chao: player.chao,
-    target: plan.target === null ? null : targetInfo(game, player, plan.target),
+    target: plan.target === null ? null : targetInfo(game, plan.target),
     canTarget: !submitted && !game.finished && canTarget(game, plan, selection),
     locked: submitted || game.finished,
     finished: game.finished,
@@ -98,6 +98,7 @@ export function playerBoardData(
         kind: preview[type].kind,
         conditional: preview[type].conditional,
         blockers: blockers[type],
+        effects: effects[type],
       })),
       total,
       affordable: total <= player.chao,
@@ -115,24 +116,10 @@ function canTarget(game: GameInfo, plan: Plan, selection: Coord | null): boolean
   return plan.target?.col !== selection.col || plan.target?.row !== selection.row;
 }
 
-function targetInfo(game: GameInfo, player: Player, coord: Coord): PlayerBoardData["target"] {
+function targetInfo(game: GameInfo, coord: Coord): PlayerBoardData["target"] {
   const tile = tileAt(game, coord);
-  const province = provinceAt(game, coord);
-  if (tile === null || province === null) {
+  if (tile === null || provinceAt(game, coord) === null) {
     return null;
   }
-  const owner = game.players.find(({ id }) => id === province.owner);
-  const status = owner === undefined ? "Free" : owner.id === player.id ? "Yours" : `Enemy · ${owner.clan}`;
-  const building = [
-    province.building === Building.City && province.doubled ? "Doubled City" : province.building,
-    RAMPART_LABELS[province.ramparts],
-  ]
-    .filter(Boolean)
-    .join(", ");
-  const extras = [
-    building,
-    province.armies > 0 ? `${province.armies} ${province.armies > 1 ? "Armies" : "Army"}` : "",
-    province.temple ? "Temple" : "",
-  ].filter(Boolean);
-  return { title: tile.name ?? tile.type, details: [tile.type, status, ...extras].join(" · ") };
+  return { title: tile.name ?? tile.type };
 }
