@@ -4,6 +4,8 @@ import { worldToHex } from "./hex_layout.ts";
 import type { Renderer } from "./renderer.ts";
 
 const CLICK_MAX_DISTANCE_PX = 5;
+const LEFT_BUTTON = 0;
+const RIGHT_BUTTON = 2;
 
 type CoordListener = (coord: Coord | null) => void;
 
@@ -17,6 +19,7 @@ export class PlanePicker {
   private downPosition: { x: number; y: number } | null = null;
   private hoverListeners = new Set<CoordListener>();
   private clickListeners = new Set<CoordListener>();
+  private rightClickListeners = new Set<CoordListener>();
   private hovered: Coord | null = null;
 
   constructor(renderer: Renderer, target: () => THREE.Object3D | null) {
@@ -39,6 +42,11 @@ export class PlanePicker {
     return () => this.clickListeners.delete(listener);
   }
 
+  onRightClick(listener: CoordListener): () => void {
+    this.rightClickListeners.add(listener);
+    return () => this.rightClickListeners.delete(listener);
+  }
+
   dispose() {
     const canvas = this.renderer.renderer.domElement;
     canvas.removeEventListener("pointermove", this.onPointerMove);
@@ -47,6 +55,7 @@ export class PlanePicker {
     canvas.removeEventListener("pointerup", this.onPointerUp);
     this.hoverListeners.clear();
     this.clickListeners.clear();
+    this.rightClickListeners.clear();
   }
 
   private onPointerMove = (event: PointerEvent) => {
@@ -71,9 +80,13 @@ export class PlanePicker {
     if (distance > CLICK_MAX_DISTANCE_PX) {
       return;
     }
+    const listeners = event.button === LEFT_BUTTON ? this.clickListeners : event.button === RIGHT_BUTTON ? this.rightClickListeners : null;
+    if (listeners === null) {
+      return;
+    }
     const coord = this.pick(event);
     this.hover(coord);
-    this.clickListeners.forEach((listener) => listener(coord));
+    listeners.forEach((listener) => listener(coord));
   };
 
   private hover(coord: Coord | null) {

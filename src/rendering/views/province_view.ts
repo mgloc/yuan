@@ -9,6 +9,7 @@ const ARMY_ANCHOR_ANGLE = (11 * Math.PI) / 6;
 const TEMPLE_ANCHOR_ANGLE = (7 * Math.PI) / 6;
 const ARMY_SPREAD = 0.24;
 const PIECE_SCALE = 1.6;
+const TEMPLE_SCALE = 1.5;
 
 export class ProvinceView {
   root: THREE.Group;
@@ -40,6 +41,7 @@ export class ProvinceView {
 
     if (province.temple) {
       const temple = this.add(this.factory.temple());
+      temple.scale.multiplyScalar(TEMPLE_SCALE);
       if (hasBuilding) {
         temple.position.copy(sideSlot(TEMPLE_ANCHOR_ANGLE));
         temple.rotation.z = TEMPLE_ANCHOR_ANGLE + Math.PI / 2;

@@ -3,6 +3,7 @@ import type { Coord } from "../game_types.ts";
 import type { Renderer } from "./renderer.ts";
 
 const CLICK_MAX_DISTANCE_PX = 5;
+const LEFT_BUTTON = 0;
 
 type PickListener = (coord: Coord | null) => void;
 
@@ -48,7 +49,7 @@ export class TilePicker {
   };
 
   private onPointerUp = (event: PointerEvent) => {
-    if (this.downPosition === null) {
+    if (this.downPosition === null || event.button !== LEFT_BUTTON) {
       return;
     }
     const distance = Math.hypot(event.clientX - this.downPosition.x, event.clientY - this.downPosition.y);

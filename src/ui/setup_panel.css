@@ -80,8 +80,67 @@
 
 .setup-panel__controls {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+}
+
+.setup-panel__rotate {
+  display: contents;
+}
+
+.setup-rotate {
+  position: fixed;
+  top: 50%;
+  z-index: 2;
+  transform: translateY(-50%);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 84px;
+  padding: 0;
+  border: 2px solid #4a5058;
+  border-radius: 14px;
+  background: rgba(20, 24, 28, 0.85);
+  color: var(--accent);
+  font-size: 48px;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.setup-rotate--left {
+  left: 16px;
+}
+
+.setup-rotate--right {
+  right: 16px;
+}
+
+.setup-rotate:hover {
+  border-color: var(--accent);
+  background: rgba(60, 48, 20, 0.9);
+}
+
+.setup-rotate:active {
+  background: rgba(90, 68, 20, 0.95);
+}
+
+@media (max-width: 600px) {
+  .setup-rotate {
+    width: 60px;
+    height: 60px;
+    font-size: 34px;
+  }
+
+  .setup-rotate--left {
+    left: 8px;
+  }
+
+  .setup-rotate--right {
+    right: 8px;
+  }
 }
 
 .setup-panel__hand {

@@ -52,6 +52,8 @@ export interface SetupPanelData {
     placed: number;
     total: number;
     hint: string | null;
+    pending: boolean;
+    canConfirm: boolean;
     hands: { seat: SetupSeat; count: number; playing: boolean }[];
   } | null;
   cities: { rows: SetupCapital[]; selected: Clan } | null;
@@ -63,6 +65,8 @@ export interface SetupPanelData {
 export interface SetupPanelHandlers {
   onSelectTile: (id: string) => void;
   onRotate: (delta: number) => void;
+  onConfirmTile: () => void;
+  onCancelTile: () => void;
   onSelectClan: (clan: Clan) => void;
   onClearCity: (clan: Clan) => void;
   onBid: (amount: number) => void;
@@ -150,14 +154,28 @@ export class SetupPanel {
     }
 
     const controls = element("div", "setup-panel__controls");
+    const rotate = element("div", "setup-panel__rotate");
     if (tiles.yourTurn) {
-      const left = element("button", "player-button player-button--ghost", "⟲");
+      if (tiles.pending) {
+        const confirm = element("button", "player-button", "Confirm placement");
+        confirm.title = "Confirm (Enter)";
+        confirm.disabled = !tiles.canConfirm;
+        confirm.addEventListener("click", () => this.handlers.onConfirmTile());
+        const cancel = element("button", "player-button player-button--ghost", "Cancel");
+        cancel.title = "Cancel (Escape)";
+        cancel.addEventListener("click", () => this.handlers.onCancelTile());
+        controls.append(confirm, cancel);
+      }
+      controls.append(element("span", "setup-panel__hint", tiles.hint ?? ""));
+      const left = element("button", "setup-rotate setup-rotate--left", "⟲");
       left.title = "Rotate left (Shift+R)";
+      left.setAttribute("aria-label", "Rotate left");
       left.addEventListener("click", () => this.handlers.onRotate(-1));
-      const right = element("button", "player-button player-button--ghost", "⟳");
-      right.title = "Rotate right (R)";
+      const right = element("button", "setup-rotate setup-rotate--right", "⟳");
+      right.title = "Rotate right (R or right click)";
+      right.setAttribute("aria-label", "Rotate right");
       right.addEventListener("click", () => this.handlers.onRotate(1));
-      controls.append(left, right, element("span", "setup-panel__hint", tiles.hint ?? "Click the table to place the tile."));
+      rotate.append(left, right);
     }
 
     const others = element("ul", "setup-panel__hands");
@@ -171,7 +189,7 @@ export class SetupPanel {
     );
     const left = element("div", "setup-panel__column");
     left.append(status, controls, others);
-    return [left, hand];
+    return [left, hand, rotate];
   }
 
   private cities(cities: NonNullable<SetupPanelData["cities"]>): HTMLElement[] {

@@ -207,7 +207,7 @@ function valueNoise(next: () => number): Field {
   };
 }
 
-function random(coord: Coord): () => number {
+export function random(coord: Coord): () => number {
   let seed = (Math.imul(coord.col + 1, 73856093) ^ Math.imul(coord.row + 1, 19349663)) >>> 0;
   return () => {
     seed = (seed + 0x6d2b79f5) >>> 0;

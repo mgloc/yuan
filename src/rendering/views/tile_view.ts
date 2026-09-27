@@ -4,6 +4,7 @@ import { disposeObject } from "../dispose.ts";
 import { TILE_RADIUS } from "../hex_layout.ts";
 import { HIGHLIGHT_STYLES, type Highlight, type HighlightStyle } from "../highlight.ts";
 import { createTileLabels } from "./tile_label.ts";
+import { createProps } from "./tile_props.ts";
 import { createRelief } from "./tile_relief.ts";
 import { createMinePit, mineHole } from "./tile_mine.ts";
 import { isTextured, tileTexture } from "./tile_textures.ts";
@@ -102,6 +103,10 @@ export class TileView {
     const relief = createRelief(entity.type, TILE_RADIUS, topZ, coord, TILE_COLORS[entity.type]);
     if (relief) {
       this.root.add(relief);
+    }
+    const props = createProps(entity.type, TILE_RADIUS, topZ, coord, Boolean(entity.name));
+    if (props) {
+      this.root.add(props);
     }
 
     if (entity.name) {

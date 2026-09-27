@@ -107,15 +107,15 @@ function drawRiceField(context: CanvasRenderingContext2D, next: () => number) {
 
 function drawForest(context: CanvasRenderingContext2D, next: () => number) {
   const size = TEXTURE_SIZE;
-  context.fillStyle = "#4f7d2a";
+  context.fillStyle = "#4a6f2a";
   context.fillRect(0, 0, size, size);
-  speckle(context, next, 600, ["rgba(40, 70, 20, 0.35)", "rgba(120, 160, 60, 0.25)"]);
+  speckle(context, next, 900, ["rgba(40, 60, 20, 0.35)", "rgba(120, 150, 60, 0.25)"]);
 
-  const greens = ["#4a7a26", "#5a8f30", "#69a03a", "#3e6b22", "#77aa42"];
-  const trees = Array.from({ length: 260 }, () => ({
+  const greens = ["#4a7428", "#56832e", "#5f8d34", "#3f6524", "#668f3a"];
+  const trees = Array.from({ length: 160 }, () => ({
     x: next() * size,
     y: next() * size,
-    radius: 14 + next() * 18,
+    radius: 8 + next() * 12,
     color: greens[Math.floor(next() * greens.length)],
   })).sort((a, b) => a.y - b.y);
 
@@ -145,12 +145,12 @@ function drawHills(context: CanvasRenderingContext2D, next: () => number) {
   context.fillStyle = "#b4c26a";
   context.fillRect(0, 0, size, size);
 
-  const hills = Array.from({ length: 11 }, () => ({
+  const hills = Array.from({ length: 5 }, () => ({
     x: next() * size,
     y: next() * size,
-    rx: 70 + next() * 90,
-    ry: 45 + next() * 60,
-    rotation: (next() - 0.5) * 0.8,
+    rx: 120 + next() * 80,
+    ry: 70 + next() * 40,
+    rotation: (next() - 0.5) * 0.6,
   })).sort((a, b) => a.y - b.y);
 
   for (const hill of hills) {
@@ -158,38 +158,18 @@ function drawHills(context: CanvasRenderingContext2D, next: () => number) {
     context.translate(hill.x, hill.y);
     context.rotate(hill.rotation);
     context.scale(1, hill.ry / hill.rx);
-    const gradient = context.createRadialGradient(-hill.rx * 0.25, -hill.rx * 0.35, hill.rx * 0.1, 0, 0, hill.rx);
-    gradient.addColorStop(0, "#d6de92");
-    gradient.addColorStop(0.6, "#b7c46c");
-    gradient.addColorStop(1, "#8fa04a");
+    const gradient = context.createRadialGradient(-hill.rx * 0.2, -hill.rx * 0.3, 0, 0, 0, hill.rx);
+    gradient.addColorStop(0, "#cbd584");
+    gradient.addColorStop(0.7, "#b4c26a");
+    gradient.addColorStop(1, "rgba(160, 176, 88, 0)");
     context.beginPath();
     context.arc(0, 0, hill.rx, 0, Math.PI * 2);
     context.fillStyle = gradient;
     context.fill();
-    for (let ring = 0.55; ring < 1; ring += 0.2) {
-      context.beginPath();
-      context.arc(hill.rx * 0.08, hill.rx * 0.1, hill.rx * ring, Math.PI * 0.05, Math.PI * 0.95);
-      context.lineWidth = 3;
-      context.strokeStyle = "rgba(115, 130, 55, 0.5)";
-      context.stroke();
-    }
     context.restore();
   }
 
-  for (let i = 0; i < 45; i++) {
-    const x = next() * size;
-    const y = next() * size;
-    const radius = 5 + next() * 7;
-    context.beginPath();
-    context.arc(x + 2, y + 3, radius, 0, Math.PI * 2);
-    context.fillStyle = "rgba(60, 80, 25, 0.4)";
-    context.fill();
-    context.beginPath();
-    context.arc(x, y, radius, 0, Math.PI * 2);
-    context.fillStyle = "#6f9337";
-    context.fill();
-  }
-  speckle(context, next, 700, ["rgba(110, 125, 50, 0.2)", "rgba(250, 250, 200, 0.2)"]);
+  speckle(context, next, 500, ["rgba(110, 125, 50, 0.18)", "rgba(250, 250, 200, 0.18)"]);
 }
 
 function drawMine(context: CanvasRenderingContext2D, next: () => number) {

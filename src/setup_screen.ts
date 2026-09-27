@@ -44,6 +44,7 @@ export class SetupScreen {
   private selectedTile: TileGroupId | null = null;
   private rotation = 0;
   private hovered: Coord | null = null;
+  private pending: Coord | null = null;
   private selectedClan: Clan;
   private onExit: () => void;
 
@@ -64,6 +65,8 @@ export class SetupScreen {
         this.render();
       },
       onRotate: (delta) => this.rotate(delta),
+      onConfirmTile: () => this.confirmTile(),
+      onCancelTile: () => this.cancelTile(),
       onSelectClan: (clan) => {
         this.selectedClan = clan;
         this.render();
@@ -84,6 +87,7 @@ export class SetupScreen {
         this.renderGhost();
       }),
       this.planePicker.onClick((coord) => coord !== null && this.placeAt(coord)),
+      this.planePicker.onRightClick(() => this.rotate(1)),
     );
     window.addEventListener("keydown", this.onKeyDown);
 
@@ -146,6 +150,7 @@ export class SetupScreen {
     const gridKey = `${setup.stage === SetupStage.Tiles}:${setup.placed}:${setup.tiles.length}x${setup.tiles[0]?.length ?? 0}`;
     if (gridKey !== this.gridKey) {
       this.gridKey = gridKey;
+      this.pending = null;
       this.ghost.root.removeFromParent();
       this.grid?.dispose(this.stage.board);
       this.grid = new TileGridView(this.stage.board, setup.tiles, this.factory, this.stage.renderer.sun.position, setup.origin);
@@ -172,10 +177,11 @@ export class SetupScreen {
 
   private anchor(): Coord | null {
     const setup = this.setup;
-    if (this.hovered === null) {
+    const point = this.pending ?? this.hovered;
+    if (point === null) {
       return null;
     }
-    return setup.placed === 0 && setup.origin !== null ? setup.origin : this.hovered;
+    return setup.placed === 0 && setup.origin !== null ? setup.origin : point;
   }
 
   private renderGhost() {
@@ -200,15 +206,36 @@ export class SetupScreen {
   }
 
   private placeAt(coord: Coord) {
+    if (!this.yourTurn || this.selectedTile === null) {
+      return;
+    }
+    this.pending = null;
     this.hovered = coord;
     const anchor = this.anchor();
+    if (anchor === null || placementError(this.setup as SetupState, anchor, this.rotation) !== null) {
+      this.render();
+      return;
+    }
+    this.pending = anchor;
+    this.render();
+  }
+
+  private confirmTile() {
+    const anchor = this.pending;
     if (!this.yourTurn || this.selectedTile === null || anchor === null) {
       return;
     }
     if (placementError(this.setup as SetupState, anchor, this.rotation) !== null) {
       return;
     }
+    this.pending = null;
     this.client.placeTile(this.selectedTile, anchor, this.rotation);
+    this.render();
+  }
+
+  private cancelTile() {
+    this.pending = null;
+    this.render();
   }
 
   private pickProvince(coord: Coord) {
@@ -240,6 +267,7 @@ export class SetupScreen {
     const turnSeat = setup.turn === null ? null : this.seat(setup.turn);
     const anchor = this.anchor();
     const hint = anchor === null ? null : placementError(setup as SetupState, anchor, this.rotation);
+    const pendingError = this.pending === null ? null : placementError(setup as SetupState, this.pending, this.rotation);
     return {
       stage: setup.stage,
       prefilled: [
@@ -258,7 +286,14 @@ export class SetupScreen {
               rotation: this.rotation,
               placed: setup.placed,
               total: setup.total,
-              hint: setup.placed === 0 ? "The first tile goes at the centre: click anywhere on the table." : hint,
+              hint:
+                this.pending !== null
+                  ? (pendingError ?? "Confirm to place it, or click elsewhere to move it.")
+                  : setup.placed === 0
+                    ? "The first tile goes at the centre: click anywhere on the table."
+                    : (hint ?? "Left click the table to place, right click to rotate."),
+              pending: this.pending !== null,
+              canConfirm: this.pending !== null && pendingError === null,
               hands: allSeats.map((seat) => ({ seat, count: setup.hands[seat.id]?.length ?? 0, playing: seat.id === setup.turn })),
             },
       cities:
@@ -356,8 +391,15 @@ export class SetupScreen {
   }
 
   private onKeyDown = (event: KeyboardEvent) => {
-    if ((event.key === "r" || event.key === "R") && !(event.target instanceof HTMLInputElement)) {
+    if (event.target instanceof HTMLInputElement) {
+      return;
+    }
+    if (event.key === "r" || event.key === "R") {
       this.rotate(event.shiftKey ? -1 : 1);
+    } else if (event.key === "Enter" && this.pending !== null) {
+      this.confirmTile();
+    } else if (event.key === "Escape" && this.pending !== null) {
+      this.cancelTile();
     }
   };
 }
