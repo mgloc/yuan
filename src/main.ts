@@ -2,6 +2,7 @@ import "./ui/screen.css";
 import { MAX_PLAYERS } from "./game/default_map.ts";
 import { GameScreen } from "./game_screen.ts";
 import { MapMakerScreen } from "./map_maker_screen.ts";
+import { MenuBackdrop } from "./rendering/menu_backdrop.ts";
 import { parseCustomMap, summariseMap } from "./game/custom_map.ts";
 import { SetupScreen } from "./setup_screen.ts";
 import { createRoom, joinRoom } from "./net/api.ts";
@@ -25,8 +26,15 @@ let lobby: Lobby | null = null;
 let game: GameScreen | null = null;
 let setup: SetupScreen | null = null;
 let maker: MapMakerScreen | null = null;
+let backdrop: MenuBackdrop | null = null;
+
+function showBackdrop() {
+  backdrop ??= new MenuBackdrop(container);
+  backdrop.show();
+}
 
 function clear() {
+  backdrop?.hide();
   client?.close();
   client = null;
   landing?.dispose();
@@ -55,6 +63,7 @@ function showLanding(code: string, error: string) {
     { name: loadName(), code, error },
   );
   landing = screen;
+  showBackdrop();
 }
 
 function showMapMaker() {
@@ -135,6 +144,7 @@ async function loadMap(current: GameClient, file: File) {
 
 function route(current: GameClient, view: PlayerView) {
   if (view.setup !== null) {
+    backdrop?.hide();
     lobby?.dispose();
     lobby = null;
     game?.dispose();
@@ -148,6 +158,7 @@ function route(current: GameClient, view: PlayerView) {
   if (view.match === null) {
     game?.dispose();
     game = null;
+    showBackdrop();
     lobby ??= new Lobby(container, {
       onClanPowers: (clanPowers) => current.setOptions({ clanPowers }),
       onMap: (map) => current.setOptions({ map }),
@@ -184,6 +195,7 @@ function route(current: GameClient, view: PlayerView) {
     });
     return;
   }
+  backdrop?.hide();
   lobby?.dispose();
   lobby = null;
   if (game === null) {

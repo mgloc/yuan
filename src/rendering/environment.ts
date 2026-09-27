@@ -3,7 +3,8 @@ import { EXRLoader } from "three/addons/loaders/EXRLoader.js";
 import { GroundedSkybox } from "three/addons/objects/GroundedSkybox.js";
 
 const URL = `${import.meta.env.BASE_URL}environment/background.exr`;
-const ROTATION = new THREE.Euler(Math.PI / 2, 0, 0);
+export const SKY_ROTATION = new THREE.Euler(Math.PI / 2, 0, 0);
+const ROTATION = SKY_ROTATION;
 const INTENSITY = 0.55;
 const CAPTURE_HEIGHT = 70;
 const SKY_RADIUS = 1200;
@@ -15,7 +16,7 @@ export class Environment {
   private scene: THREE.Scene;
   private renderer: THREE.WebGLRenderer;
   private lighting: THREE.WebGLRenderTarget | null = null;
-  private backdrop: THREE.DataTexture | null = null;
+  private backdrop: THREE.Texture | null = null;
   private skybox: GroundedSkybox | null = null;
   private groundZ: number | null = null;
   private disposed = false;
@@ -37,22 +38,18 @@ export class Environment {
     this.disposed = true;
     this.removeSkybox();
     this.lighting?.dispose();
-    this.backdrop?.dispose();
   }
 
   private async load() {
     try {
-      const source = await new EXRLoader().setDataType(THREE.FloatType).loadAsync(URL);
+      const { source, backdrop } = await loadSky();
       if (this.disposed) {
-        source.dispose();
         return;
       }
-      source.mapping = THREE.EquirectangularReflectionMapping;
       const generator = new THREE.PMREMGenerator(this.renderer);
       this.lighting = generator.fromEquirectangular(source);
       generator.dispose();
-      this.backdrop = blurred(source);
-      source.dispose();
+      this.backdrop = backdrop;
 
       this.scene.environment = this.lighting.texture;
       this.scene.environmentIntensity = INTENSITY;
@@ -86,6 +83,25 @@ export class Environment {
     (this.skybox.material as THREE.Material).dispose();
     this.skybox = null;
   }
+}
+
+export interface Sky {
+  source: THREE.DataTexture;
+  backdrop: THREE.DataTexture;
+}
+
+let sky: Promise<Sky> | null = null;
+
+export function loadSky(): Promise<Sky> {
+  sky ??= new EXRLoader()
+    .setDataType(THREE.FloatType)
+    .loadAsync(URL)
+    .then((source) => {
+      source.mapping = THREE.EquirectangularReflectionMapping;
+      return { source, backdrop: blurred(source) };
+    });
+  sky.catch(() => (sky = null));
+  return sky;
 }
 
 function blurred(source: THREE.DataTexture): THREE.DataTexture {
