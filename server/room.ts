@@ -1,5 +1,5 @@
 import { ACTION_LEVELS, ActionType, type Board, type Clan, type Coord, type GameState, type Plan, type PlayerId } from "../src/game_types.ts";
-import { MAX_PLAYERS, prebuiltBoard, prebuiltCapitals, prebuiltMap } from "../src/game/default_map.ts";
+import { MAX_PLAYERS, mapBoard, mapCapitals, prebuiltMap, type PrebuiltMap } from "../src/game/default_map.ts";
 import { chooseClan, clanOfPlayer, clansAssigned, leaveBidding, placeBid, startClans } from "../src/game/setup/bidding.ts";
 import { createGame } from "../src/game/setup.ts";
 import { resolveTurn } from "../src/game/turn/resolve.ts";
@@ -58,7 +58,7 @@ export function newRoomState(code: string, debug: boolean): RoomState {
     code,
     debug,
     host: 0,
-    options: { bidding: false, clanPowers: true, map: MapMode.Prebuilt, clans: [] },
+    options: { bidding: false, clanPowers: true, map: MapMode.Prebuilt, clans: [], customMap: null },
     members: [],
     setup: null,
     game: null,
@@ -139,8 +139,11 @@ export class Room {
     if (typeof options.clanPowers === "boolean") {
       next.clanPowers = options.clanPowers;
     }
-    if (options.map === MapMode.Prebuilt || options.map === MapMode.Custom) {
+    if (options.map === MapMode.Prebuilt || options.map === MapMode.Custom || options.map === MapMode.Imported) {
       next.map = options.map;
+    }
+    if (options.customMap !== undefined) {
+      next.customMap = options.customMap;
     }
     if (typeof options.bidding === "boolean") {
       next.bidding = options.bidding;
@@ -156,6 +159,9 @@ export class Room {
     this.requireLobby();
     if (this.state.members.length < MIN_PLAYERS) {
       throw new RoomError(409, `At least ${MIN_PLAYERS} players are needed`);
+    }
+    if (this.state.options.map === MapMode.Imported && !this.state.options.customMap) {
+      throw new RoomError(409, "Load a map file first");
     }
     const chosen = this.state.options.clans ?? [];
     if (chosen.length > 0 && chosen.length !== this.state.members.length) {
@@ -291,7 +297,7 @@ export class Room {
       self,
       host,
       debug,
-      options: { ...options, map: options.map ?? MapMode.Prebuilt, clans: options.clans ?? [] },
+      options: { ...options, map: options.map ?? MapMode.Prebuilt, clans: options.clans ?? [], customMap: options.customMap ?? null },
       seats,
       setup: this.setupView(player),
       match:
@@ -359,17 +365,22 @@ export class Room {
     this.state.plans = {};
     this.state.log = [];
     const players = this.state.members.map(({ id }) => id);
-    const custom = this.state.options.map === MapMode.Custom;
-    const withBidding = this.state.options.bidding || (!custom && prebuiltMap(players.length).bidding === true);
     const chosen = this.state.options.clans ?? [];
-    if (custom) {
-      const setup = newSetup(players.length, this.random, withBidding, chosen);
+    if (this.state.options.map === MapMode.Custom) {
+      const setup = newSetup(players.length, this.random, this.state.options.bidding, chosen);
       this.state.setup = setup;
       this.state.members.filter(({ left }) => left).forEach(({ id }) => handOver(setup, id, this.active));
     } else {
-      this.state.setup = citySetup(prebuiltBoard(players), prebuiltCapitals(players.length), players.length, withBidding, chosen);
+      const map = this.mapToPlay(players.length);
+      const withBidding = this.state.options.bidding || map.bidding === true;
+      this.state.setup = citySetup(mapBoard(map), mapCapitals(map, players.length), players.length, withBidding, chosen, map.temples !== undefined);
     }
     this.advanceSetup();
+  }
+
+  private mapToPlay(players: number): PrebuiltMap {
+    const custom = this.state.options.map === MapMode.Imported ? this.state.options.customMap : null;
+    return custom ?? prebuiltMap(players);
   }
 
   private advanceSetup() {

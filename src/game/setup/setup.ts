@@ -1,4 +1,4 @@
-import { Building, Clan, isLand, type Board, type Coord, type Grid, type PlayerId, type Tile } from "../../game_types.ts";
+import { Building, Clan, isLand, TileType, type Board, type Coord, type Grid, type PlayerId, type Tile } from "../../game_types.ts";
 import { freeProvince } from "../board_layout.ts";
 import { coordKey } from "../tile/coords.ts";
 import { ringAround } from "./hex.ts";
@@ -65,11 +65,12 @@ export function citySetup(
   players: number,
   withBidding: boolean,
   chosen: readonly Clan[] = [],
+  templesLocked = true,
 ): SetupState {
   const temples = board.provinces.flatMap((line, row) => line.flatMap((province, col) => (province?.temple ? [{ col, row }] : [])));
   const clans = chosen.length === players ? [...chosen] : capitals === null ? clansInPlay(players) : capitals.map(({ clan }) => clan);
   return {
-    stage: capitals === null ? SetupStage.Cities : SetupStage.Clans,
+    stage: capitals === null ? SetupStage.Cities : templesLocked ? SetupStage.Clans : SetupStage.Temples,
     tiles: board.tiles,
     origin: null,
     hands: Array.from({ length: players }, () => []),
@@ -83,7 +84,7 @@ export function citySetup(
     owners: clans.map(() => null),
     withBidding,
     bidding: null,
-    templesLocked: true,
+    templesLocked,
     citiesLocked: capitals !== null,
   };
 }
@@ -198,8 +199,8 @@ export function toggleTemple(setup: SetupState, coord: Coord): string | null {
   if (setup.stage !== SetupStage.Temples || setup.templesLocked) {
     return "Temples are not being placed";
   }
-  if (!isProvince(setup.tiles, coord)) {
-    return "A Temple goes on a Province";
+  if (setup.tiles[coord.row]?.[coord.col]?.type !== TileType.Hills) {
+    return "A Temple goes on Hills";
   }
   const index = setup.temples.findIndex((temple) => coordKey(temple) === coordKey(coord));
   if (index >= 0) {

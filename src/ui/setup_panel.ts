@@ -281,7 +281,7 @@ export class SetupPanel {
     const intro = element("div", "setup-panel__status");
     intro.append(
       element("strong", "", `${temples.count} / ${temples.max} Temples`),
-      element("span", "setup-panel__hint", "Click a Province to add or remove a Temple."),
+      element("span", "setup-panel__hint", "Temples go on Hills: click a Hills Province to add or remove one."),
     );
     return [intro];
   }
@@ -306,7 +306,7 @@ export class SetupPanel {
   }
 }
 
-function flower(tile: SetupTile, rotation: number): SVGSVGElement {
+export function flower(tile: SetupTile, rotation: number): SVGSVGElement {
   const svg = document.createElementNS(SVG, "svg");
   const extent = HEX_SIZE * 3.2;
   svg.setAttribute("viewBox", `${-extent} ${-extent} ${extent * 2} ${extent * 2}`);

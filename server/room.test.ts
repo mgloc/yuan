@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { Building, Clan } from "../src/game_types.ts";
+import { Building, Clan, TileType } from "../src/game_types.ts";
 import { emptyPlan } from "../src/game/plan/plan.ts";
 import { prebuiltMap, STARTING_CITIES } from "../src/game/default_map.ts";
 import { provinceAt } from "../src/game/tile/coords.ts";
 import { plan } from "../src/game/turn/testing.ts";
 import { placementError, SetupStage } from "../src/game/setup/setup.ts";
 import { MapMode } from "../src/protocol.ts";
+import { parseCustomMap } from "../src/game/custom_map.ts";
+import type { PrebuiltMap } from "../src/game/default_map.ts";
 import { newRoomState, Room } from "./room.ts";
 
 let tokens = 0;
@@ -25,6 +27,18 @@ function playBidding(room: Room, members: { token: string }[]) {
   }
 }
 
+function agreeOnTemples(room: Room, tokens: string[], as?: number[]) {
+  if (room.view(0).setup?.stage !== SetupStage.Temples) {
+    return;
+  }
+  tokens.forEach((token, i) => room.agree(token, as?.[i], true));
+}
+
+function launch(room: Room, tokens: string[]) {
+  room.start(tokens[0]);
+  agreeOnTemples(room, tokens);
+}
+
 function lobby(players: number, debug = false) {
   const room = newRoom(debug);
   const members = Array.from({ length: players }, (_, i) => room.join(`P${i}`));
@@ -41,8 +55,8 @@ describe("lobby", () => {
   it("draws Clans at random for the capitals when not bidding", () => {
     const room = new Room(newRoomState("CODE", false), () => `token-${tokens++}`, () => 0);
     const host = room.join("Host").token;
-    room.join("Guest");
-    room.start(host);
+    const guest = room.join("Guest").token;
+    launch(room, [host, guest]);
     const seats = room.view(0).seats;
     expect(seats.map(({ clan }) => clan)).toEqual([Clan.Xiangi, Clan.Suhey]);
     expect(provinceAt(room.view(0).match!, STARTING_CITIES[1])).toMatchObject({ owner: 0, building: Building.City });
@@ -55,7 +69,7 @@ describe("lobby", () => {
     expect(() => room.setOptions(guest.token, { clanPowers: false })).toThrow("host");
     expect(() => room.start(guest.token)).toThrow("host");
     room.setOptions(host, { clanPowers: false });
-    room.start(host);
+    launch(room, [host, guest.token]);
     expect(room.view(members[0].id).match).not.toBeNull();
     expect(room.view(0).options.clanPowers).toBe(false);
     expect(() => room.join("late")).toThrow("already started");
@@ -63,7 +77,7 @@ describe("lobby", () => {
 
   it("makes Crossing the Waters bid for its fixed capitals", () => {
     const { room, members, host } = lobby(3);
-    room.start(host);
+    launch(room, members.map(({ token }) => token));
     const setup = room.view(0).setup!;
     expect(setup).toMatchObject({ stage: SetupStage.Clans, withBidding: true, clans: [Clan.Mu, Clan.Xiangi, Clan.Weyu] });
     expect(room.view(0).seats.every(({ clan }) => clan === null)).toBe(true);
@@ -90,8 +104,8 @@ describe("lobby", () => {
 
 describe("game", () => {
   it("shows each player only their own Chão and plan", () => {
-    const { room, members, host } = lobby(2);
-    room.start(host);
+    const { room, members } = lobby(2);
+    launch(room, members.map(({ token }) => token));
     room.submit(members[1].token, undefined, emptyPlan());
     expect(room.view(0).match!.chao).toBe(3);
     expect(room.view(1).match!.chao).toBe(4);
@@ -103,7 +117,7 @@ describe("game", () => {
 
   it("resolves the turn once everyone has submitted", () => {
     const { room, members, host } = lobby(2);
-    room.start(host);
+    launch(room, members.map(({ token }) => token));
     room.submit(host, undefined, plan(STARTING_CITIES[0], { Development: 1 }));
     expect(room.view(0).match!.turn).toBe(1);
     room.submit(members[1].token, undefined, emptyPlan());
@@ -115,8 +129,8 @@ describe("game", () => {
   });
 
   it("rejects invalid plans and lets players edit a submitted plan", () => {
-    const { room, host } = lobby(2);
-    room.start(host);
+    const { room, members, host } = lobby(2);
+    launch(room, members.map(({ token }) => token));
     expect(() => room.submit(host, undefined, plan(STARTING_CITIES[0], { Development: 3 }))).toThrow("Not enough Chão");
     room.submit(host, undefined, emptyPlan());
     expect(() => room.submit(host, undefined, emptyPlan())).toThrow("already submitted");
@@ -130,11 +144,13 @@ describe("debug mode", () => {
     const { room, host } = lobby(1, true);
     room.addPlayer(host);
     room.start(host);
+    agreeOnTemples(room, [host, host], [0, 1]);
     expect(room.actor(host, 1)).toBe(1);
     room.submit(host, 0, emptyPlan());
     room.submit(host, 1, emptyPlan());
     expect(room.view(0).match!.turn).toBe(2);
     room.restart(host);
+    agreeOnTemples(room, [host, host], [0, 1]);
     expect(room.view(0).match!.turn).toBe(1);
     expect(room.view(0).match!.log).toEqual([]);
     room.backToLobby(host);
@@ -163,7 +179,7 @@ describe("leaving", () => {
 
   it("forfeits a running game: the seat passes every turn", () => {
     const { room, members, host } = lobby(3);
-    room.start(host);
+    launch(room, members.map(({ token }) => token));
     playBidding(room, members);
     room.leave(members[2].token);
     expect(room.view(0).seats[2]).toMatchObject({ left: true, submitted: true });
@@ -176,7 +192,7 @@ describe("leaving", () => {
 
   it("resolves at once when the last missing player leaves", () => {
     const { room, members, host } = lobby(2);
-    room.start(host);
+    launch(room, members.map(({ token }) => token));
     room.submit(host, undefined, emptyPlan());
     room.leave(members[1].token);
     expect(room.view(0).match!.turn).toBe(2);
@@ -232,7 +248,8 @@ describe("map setup", () => {
     room.agree(tokens[1], undefined, true);
     expect(room.view(0).setup!.stage).toBe(SetupStage.Temples);
 
-    room.toggleTemple(tokens[1], undefined, provinces[3]);
+    const hills = provinces.find(({ col, row }) => room.view(0).setup!.tiles[row][col]!.type === TileType.Hills)!;
+    room.toggleTemple(tokens[1], undefined, hills);
     room.agree(tokens[0], undefined, true);
     room.agree(tokens[1], undefined, true);
     const view = room.view(0);
@@ -261,19 +278,24 @@ describe("map setup", () => {
 });
 
 describe("prebuilt maps without fixed Cities", () => {
-  it("skips tiles and Temples, and asks everyone to agree on Cities", () => {
+  it("skips tiles, then asks everyone to agree on Cities and Temples on Hills", () => {
     const { room, members, host } = lobby(4);
     room.start(host);
     const setup = room.view(0).setup!;
-    expect(setup).toMatchObject({ stage: SetupStage.Cities, templesLocked: true });
-    expect(setup.temples).toHaveLength(13);
-    expect(() => room.toggleTemple(host, undefined, setup.temples[0])).toThrow("Temples are not being placed");
+    expect(setup).toMatchObject({ stage: SetupStage.Cities, templesLocked: false, temples: [] });
     const provinces = setup.tiles.flatMap((line, row) => line.flatMap((tile, col) => (tile?.name ? [{ col, row }] : [])));
     members.forEach((member, i) => room.setCity(member.token, undefined, setup.clans[i], provinces[i * 7]));
     members.forEach((member) => room.agree(member.token, undefined, true));
+    expect(room.view(0).setup!.stage).toBe(SetupStage.Temples);
+    const typeOf = ({ col, row }: { col: number; row: number }) => setup.tiles[row][col]!.type;
+    const hills = provinces.find((coord) => typeOf(coord) === TileType.Hills)!;
+    const forest = provinces.find((coord) => typeOf(coord) === TileType.Forest)!;
+    expect(() => room.toggleTemple(host, undefined, forest)).toThrow("A Temple goes on Hills");
+    room.toggleTemple(host, undefined, hills);
+    members.forEach((member) => room.agree(member.token, undefined, true));
     const view = room.view(0);
     expect(view.setup).toBeNull();
-    expect(view.match!.provinces.flat().filter((province) => province?.temple)).toHaveLength(13);
+    expect(view.match!.provinces.flat().filter((province) => province?.temple)).toHaveLength(1);
     expect(provinceAt(view.match!, provinces[14])).toMatchObject({ owner: 2, building: Building.City });
   });
 });
@@ -285,16 +307,63 @@ describe("Clans in play", () => {
     room.setOptions(host, { clans: [Clan.Mu] });
     expect(() => room.start(host)).toThrow("Pick 2 Clans");
     room.setOptions(host, { clans: [Clan.Mu, Clan.Weyu] });
-    room.start(host);
+    launch(room, members.map(({ token }) => token));
     expect(room.view(0).seats.map(({ clan }) => clan).sort()).toEqual([Clan.Mu, Clan.Weyu]);
   });
 
   it("puts the picked Clans on a map's fixed capitals", () => {
     const { room, members, host } = lobby(3);
     room.setOptions(host, { clans: [Clan.Suhey, Clan.Weyu, Clan.Xiangi] });
-    room.start(host);
+    launch(room, members.map(({ token }) => token));
     expect(room.view(0).setup!.clans).toEqual([Clan.Suhey, Clan.Weyu, Clan.Xiangi]);
     playBidding(room, members);
     expect(room.view(0).seats.map(({ clan }) => clan).sort()).toEqual([Clan.Suhey, Clan.Weyu, Clan.Xiangi]);
+  });
+});
+
+describe("imported maps", () => {
+  const layout = ["H:Cao R:Bao ~ H:Nie", "F:Ju M:Ge H:Tov R:Lu"];
+  const capitals = [
+    { clan: Clan.Mu, coord: { col: 0, row: 1 } },
+    { clan: Clan.Weyu, coord: { col: 3, row: 1 } },
+  ];
+  const imported = (map: object) => {
+    const context = lobby(2);
+    context.room.setOptions(context.host, { map: MapMode.Imported, customMap: parseCustomMap(map) as PrebuiltMap });
+    return context;
+  };
+
+  it("needs a map before launching", () => {
+    const { room, host } = lobby(2);
+    room.setOptions(host, { map: MapMode.Imported });
+    expect(() => room.start(host)).toThrow("Load a map file first");
+  });
+
+  it("starts at once when the map fixes Capitals and Temples", () => {
+    const { room, host } = imported({ layout, capitals, temples: [{ col: 0, row: 0 }] });
+    room.start(host);
+    const match = room.view(0).match!;
+    expect(match.provinces.flat().filter((province) => province?.temple)).toHaveLength(1);
+    expect(provinceAt(match, capitals[1].coord)).toMatchObject({ building: Building.City });
+  });
+
+  it("asks for Temples only when the map has Capitals but no Temples", () => {
+    const { room, members, host } = imported({ layout, capitals });
+    room.start(host);
+    expect(room.view(0).setup).toMatchObject({ stage: SetupStage.Temples, citiesLocked: true, clans: [Clan.Mu, Clan.Weyu] });
+    room.toggleTemple(host, undefined, { col: 3, row: 0 });
+    members.forEach((member) => room.agree(member.token, undefined, true));
+    expect(room.view(0).match!.provinces.flat().filter((province) => province?.temple)).toHaveLength(1);
+  });
+
+  it("asks for Cities, then keeps the map's Temples", () => {
+    const { room, members, host } = imported({ layout, temples: [{ col: 2, row: 1 }] });
+    room.start(host);
+    const setup = room.view(0).setup!;
+    expect(setup).toMatchObject({ stage: SetupStage.Cities, templesLocked: true });
+    room.setCity(host, undefined, setup.clans[0], { col: 0, row: 0 });
+    room.setCity(host, undefined, setup.clans[1], { col: 1, row: 1 });
+    members.forEach((member) => room.agree(member.token, undefined, true));
+    expect(room.view(0).match!.provinces.flat().filter((province) => province?.temple)).toHaveLength(1);
   });
 });

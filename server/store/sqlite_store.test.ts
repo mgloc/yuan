@@ -64,8 +64,11 @@ describe("RoomService", () => {
     const path = databaseFile();
     const before = new RoomService(new SqliteRoomStore(path), new LocalNotifier());
     const host = await before.create("Host", false, 10);
-    await before.mutate(host.code, (room) => room.join("Guest"));
+    const guest = await before.mutate(host.code, (room) => room.join("Guest"));
     await before.mutate(host.code, (room) => room.start(host.token));
+    for (const token of [host.token, guest.token]) {
+      await before.mutate(host.code, (room) => room.agree(token, undefined, true));
+    }
 
     const after = new RoomService(new SqliteRoomStore(path), new LocalNotifier());
     await after.mutate(host.code, (room) => room.submit(host.token, undefined, emptyPlan()));

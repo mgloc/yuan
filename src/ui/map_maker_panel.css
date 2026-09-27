@@ -1,0 +1,102 @@
+.maker-panel__tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.maker-panel__tab {
+  padding: 5px 12px;
+  border: 1px solid #4a5058;
+  border-radius: 999px;
+  background: transparent;
+  color: #a8b0b8;
+  font: 600 11px/1 system-ui, sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.maker-panel__tab:hover {
+  border-color: var(--accent);
+}
+
+.maker-panel__tab--active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #1b1b1b;
+}
+
+.maker-panel__placed {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 260px;
+}
+
+.maker-panel__chip {
+  padding: 2px 8px;
+  border: 1px solid #4a5058;
+  border-radius: 4px;
+  background: transparent;
+  color: #d8dde2;
+  font: 12px/1.4 system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.maker-panel__chip:hover {
+  border-color: #ff8a80;
+  color: #ffb4ad;
+}
+
+.maker-panel__fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.maker-panel__field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.maker-panel__players {
+  width: 64px;
+}
+
+.maker-panel__check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 8px;
+}
+
+.maker-panel__warnings {
+  margin: 0;
+  padding-left: 18px;
+  color: #ffcf70;
+  font-size: 12px;
+}
+
+.maker-panel__warnings:empty {
+  display: none;
+}
+
+.maker-panel__json {
+  box-sizing: border-box;
+  flex: 1;
+  min-width: 260px;
+  height: 180px;
+  padding: 8px;
+  border: 1px solid #4a5058;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  color: #d8dde2;
+  font: 11px/1.4 ui-monospace, monospace;
+  resize: vertical;
+}
+
+.maker-panel__danger:hover {
+  border-color: #ff8a80;
+  color: #ffb4ad;
+}

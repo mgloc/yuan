@@ -1,9 +1,11 @@
+import type { CustomMapSummary } from "../game/custom_map.ts";
 import { MapMode } from "../protocol.ts";
 import { element } from "./dom.ts";
 
 const MAP_CHOICES: readonly { mode: MapMode; title: string; hint: string }[] = [
   { mode: MapMode.Prebuilt, title: "Prebuilt map", hint: "Start right away on a ready-made map" },
   { mode: MapMode.Custom, title: "Build it together", hint: "Place Territory tiles in turns, then agree on Cities and Temples" },
+  { mode: MapMode.Imported, title: "Your map", hint: "Play a map exported from the map maker (.json)" },
 ];
 
 export interface LobbySeat {
@@ -24,6 +26,7 @@ export interface LobbyData {
   clanPowers: boolean;
   bidding: boolean;
   map: MapMode;
+  customMap: CustomMapSummary | null;
   clans: { clan: string; color: string; selected: boolean }[];
 }
 
@@ -32,6 +35,7 @@ export interface LobbyHandlers {
   onBidding: (enabled: boolean) => void;
   onToggleClan: (clan: string) => void;
   onMap: (mode: MapMode) => void;
+  onLoadMap: (file: File) => void;
   onLaunch: () => void;
   onAddPlayer: () => void;
   onCopyLink: () => void;
@@ -52,6 +56,9 @@ export class Lobby {
   private handlers: LobbyHandlers;
   private maps: { mode: MapMode; input: HTMLInputElement; label: HTMLElement }[];
   private addPlayer: HTMLButtonElement;
+  private mapFile: HTMLElement;
+  private loadMap: HTMLButtonElement;
+  private mapSummary: HTMLElement;
   private launch: HTMLButtonElement;
   private hint: HTMLElement;
   private exit: HTMLButtonElement;
@@ -110,6 +117,22 @@ export class Lobby {
       label.append(input, text);
       return { mode, input, label };
     });
+    const fileInput = element("input", "");
+    fileInput.type = "file";
+    fileInput.accept = "application/json,.json";
+    fileInput.hidden = true;
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files?.[0];
+      fileInput.value = "";
+      if (file) {
+        handlers.onLoadMap(file);
+      }
+    });
+    this.loadMap = element("button", "player-button player-button--ghost", "Load .json map");
+    this.loadMap.addEventListener("click", () => fileInput.click());
+    this.mapSummary = element("p", "screen__hint");
+    this.mapFile = element("div", "lobby__map-file");
+    this.mapFile.append(this.mapSummary, this.loadMap, fileInput);
     const optionsSection = element("section", "screen__section");
     optionsSection.append(
       element("h2", "screen__heading", "Options"),
@@ -118,7 +141,7 @@ export class Lobby {
       element("h2", "screen__heading", "Clans in play"),
       this.clanChips,
       this.clanHint,
-      element("h2", "screen__heading", "Map"), ...this.maps.map(({ label }) => label));
+      element("h2", "screen__heading", "Map"), ...this.maps.map(({ label }) => label), this.mapFile);
 
     this.launch = element("button", "player-button", "Launch game");
     this.launch.addEventListener("click", handlers.onLaunch);
@@ -171,6 +194,11 @@ export class Lobby {
       input.disabled = !data.isHost;
       label.classList.toggle("screen__option--disabled", !data.isHost);
     }
+    this.mapFile.hidden = data.map !== MapMode.Imported;
+    this.loadMap.hidden = !data.isHost;
+    this.loadMap.textContent = data.customMap === null ? "Load .json map" : "Load another map";
+    this.mapSummary.textContent = data.customMap === null ? "No map loaded yet." : mapText(data.customMap, data.seats.length);
+    this.mapSummary.classList.toggle("screen__error", data.map === MapMode.Imported && data.customMap === null);
     this.bidding.checked = data.bidding;
     this.bidding.disabled = !data.isHost;
     this.biddingLabel.classList.toggle("screen__option--disabled", !data.isHost);
@@ -198,7 +226,8 @@ export class Lobby {
           ? "One Clan per player, ready."
           : `Pick ${players} Clans, one per player (${picked} picked).`;
     this.clanHint.classList.toggle("screen__error", !clansReady);
-    const enough = data.seats.length >= data.minPlayers && clansReady;
+    const mapReady = data.map !== MapMode.Imported || data.customMap !== null;
+    const enough = data.seats.length >= data.minPlayers && clansReady && mapReady;
     this.exit.textContent = data.isHost ? "Delete lobby" : "Leave lobby";
     this.exit.classList.toggle("screen__link--danger", data.isHost);
     this.launch.hidden = !data.isHost;
@@ -207,10 +236,19 @@ export class Lobby {
       ? "Waiting for the host to launch the game"
       : enough
         ? `${data.seats.length} players ready`
-        : `At least ${data.minPlayers} players are needed. Share the code to invite them.`;
+        : !mapReady
+          ? "Load a map file to play your map."
+          : `At least ${data.minPlayers} players are needed. Share the code to invite them.`;
   }
 
   dispose() {
     this.root.remove();
   }
+}
+
+function mapText(map: CustomMapSummary, players: number): string {
+  const capitals = map.capitals.length >= players ? `${map.capitals.length} fixed Capitals` : "Cities agreed at setup";
+  const temples = map.temples === null ? "Temples placed at setup" : `${map.temples} fixed Temples`;
+  const made = map.players !== null && map.players !== players ? ` · made for ${map.players} players` : "";
+  return `${map.name}: ${map.provinces} Provinces · ${capitals} · ${temples}${map.bidding ? " · bidding" : ""}${made}`;
 }

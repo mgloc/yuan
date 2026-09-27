@@ -113,10 +113,13 @@ describe("Cities and Temples by consensus", () => {
     nextStage(setup);
     expect(setup.stage).toBe(SetupStage.Temples);
 
-    expect(toggleTemple(setup, provinces[0])).toBeNull();
-    expect(toggleTemple(setup, provinces[2])).toBeNull();
-    expect(toggleTemple(setup, provinces[2])).toBeNull();
-    expect(setup.temples).toEqual([provinces[0]]);
+    const hills = provinces.filter(({ col, row }) => setup.tiles[row][col]!.type === TileType.Hills);
+    const rice = provinces.find(({ col, row }) => setup.tiles[row][col]!.type === TileType.RiceField)!;
+    expect(toggleTemple(setup, rice)).toBe("A Temple goes on Hills");
+    expect(toggleTemple(setup, hills[0])).toBeNull();
+    expect(toggleTemple(setup, hills[1])).toBeNull();
+    expect(toggleTemple(setup, hills[1])).toBeNull();
+    expect(setup.temples).toEqual([hills[0]]);
     nextStage(setup);
     expect(setup.stage).toBe(SetupStage.Clans);
     setup.owners = [1, 0];
@@ -130,9 +133,10 @@ describe("Cities and Temples by consensus", () => {
   it("caps the number of Temples", () => {
     const setup = placeAll(4);
     setup.stage = SetupStage.Temples;
-    const provinces = setup.tiles.flatMap((line, row) => line.flatMap((tile, col) => (tile && tile.name ? [{ col, row }] : [])));
+    setup.tiles = [Array.from({ length: MAX_TEMPLES + 1 }, () => ({ type: TileType.Hills }))];
     setup.temples = [];
-    provinces.slice(0, MAX_TEMPLES).forEach((coord) => expect(toggleTemple(setup, coord)).toBeNull());
-    expect(toggleTemple(setup, provinces[MAX_TEMPLES])).toBe(`There are only ${MAX_TEMPLES} Temples`);
+    const hills = setup.tiles[0].map((_, col) => ({ col, row: 0 }));
+    hills.slice(0, MAX_TEMPLES).forEach((coord) => expect(toggleTemple(setup, coord)).toBeNull());
+    expect(toggleTemple(setup, hills[MAX_TEMPLES])).toBe(`There are only ${MAX_TEMPLES} Temples`);
   });
 });

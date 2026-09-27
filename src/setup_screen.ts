@@ -404,7 +404,7 @@ export class SetupScreen {
   };
 }
 
-function tileData(id: TileGroupId): SetupTile {
+export function tileData(id: TileGroupId): SetupTile {
   const group = tileGroup(id)!;
   return {
     id,
@@ -415,7 +415,7 @@ function tileData(id: TileGroupId): SetupTile {
   };
 }
 
-function expectedArea(tiles: number): THREE.Box3 {
+export function expectedArea(tiles: number): THREE.Box3 {
   const radius = Math.sqrt((tiles * 7 * HEX_AREA) / Math.PI) * AREA_MARGIN;
   return new THREE.Box3(new THREE.Vector3(-radius, -radius, TILE_BOTTOM_Z), new THREE.Vector3(radius, radius, BOARD_HEIGHT));
 }

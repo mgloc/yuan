@@ -1,11 +1,13 @@
 import "./ui/screen.css";
 import { MAX_PLAYERS } from "./game/default_map.ts";
 import { GameScreen } from "./game_screen.ts";
+import { MapMakerScreen } from "./map_maker_screen.ts";
+import { parseCustomMap, summariseMap } from "./game/custom_map.ts";
 import { SetupScreen } from "./setup_screen.ts";
 import { createRoom, joinRoom } from "./net/api.ts";
 import { GameClient } from "./net/game_client.ts";
 import { forgetSession, loadName, loadSession, saveName, saveSession } from "./net/session.ts";
-import { MIN_PLAYERS, type PlayerView, type Session } from "./protocol.ts";
+import { MapMode, MIN_PLAYERS, type PlayerView, type Session } from "./protocol.ts";
 import { clanCssColor, seatCssColor } from "./rendering/clan_colors.ts";
 import { CLAN_ORDER } from "./game/setup/setup.ts";
 import type { Clan } from "./game_types.ts";
@@ -22,6 +24,7 @@ let landing: Landing | null = null;
 let lobby: Lobby | null = null;
 let game: GameScreen | null = null;
 let setup: SetupScreen | null = null;
+let maker: MapMakerScreen | null = null;
 
 function clear() {
   client?.close();
@@ -34,6 +37,8 @@ function clear() {
   game = null;
   setup?.dispose();
   setup = null;
+  maker?.dispose();
+  maker = null;
 }
 
 function showLanding(code: string, error: string) {
@@ -45,10 +50,17 @@ function showLanding(code: string, error: string) {
       onCreate: (name, debug) => request(screen, name, () => createRoom({ name, debug })),
       onJoin: (name, code) =>
         code === "" ? screen.showError("Enter a game code") : request(screen, name, () => joinRoom(code, { name })),
+      onMapMaker: () => showMapMaker(),
     },
     { name: loadName(), code, error },
   );
   landing = screen;
+}
+
+function showMapMaker() {
+  clear();
+  history.replaceState(null, "", "?maker");
+  maker = new MapMakerScreen(container, toast, () => showLanding("", ""));
 }
 
 async function request(screen: Landing, name: string, send: () => Promise<Session>) {
@@ -107,6 +119,20 @@ async function exit(current: GameClient) {
   showLanding("", "");
 }
 
+async function loadMap(current: GameClient, file: File) {
+  let map: ReturnType<typeof parseCustomMap>;
+  try {
+    map = parseCustomMap(JSON.parse(await file.text()));
+  } catch {
+    map = "This file is not valid JSON";
+  }
+  if (typeof map === "string") {
+    toast.show(`Could not load the map: ${map}`);
+    return;
+  }
+  current.setOptions({ map: MapMode.Imported, customMap: map });
+}
+
 function route(current: GameClient, view: PlayerView) {
   if (view.setup !== null) {
     lobby?.dispose();
@@ -125,6 +151,7 @@ function route(current: GameClient, view: PlayerView) {
     lobby ??= new Lobby(container, {
       onClanPowers: (clanPowers) => current.setOptions({ clanPowers }),
       onMap: (map) => current.setOptions({ map }),
+      onLoadMap: (file) => loadMap(current, file),
       onBidding: (bidding) => current.setOptions({ bidding }),
       onToggleClan: (clan) => {
         const chosen = current.view.get()?.options.clans ?? [];
@@ -151,6 +178,7 @@ function route(current: GameClient, view: PlayerView) {
       debug: view.debug,
       clanPowers: view.options.clanPowers,
       map: view.options.map,
+      customMap: view.options.customMap === null ? null : summariseMap(view.options.customMap),
       bidding: view.options.bidding,
       clans: CLAN_ORDER.map((clan) => ({ clan, color: readableOnDark(clanCssColor(clan)), selected: view.options.clans.includes(clan) })),
     });
@@ -165,9 +193,12 @@ function route(current: GameClient, view: PlayerView) {
   }
 }
 
-const code = new URLSearchParams(location.search).get("game")?.trim().toUpperCase() ?? "";
+const params = new URLSearchParams(location.search);
+const code = params.get("game")?.trim().toUpperCase() ?? "";
 const session = code === "" ? null : loadSession(code);
-if (session === null) {
+if (params.has("maker")) {
+  showMapMaker();
+} else if (session === null) {
   showLanding(code, "");
 } else {
   enter(session);

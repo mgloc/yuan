@@ -3,6 +3,7 @@ import { element } from "./dom.ts";
 export interface LandingHandlers {
   onCreate: (name: string, debug: boolean) => void;
   onJoin: (name: string, code: string) => void;
+  onMapMaker: () => void;
 }
 
 export class Landing {
@@ -45,6 +46,11 @@ export class Landing {
     const joinSection = element("section", "screen__section");
     joinSection.append(element("h2", "screen__heading", "Join a game"), row);
 
+    const maker = element("button", "player-button player-button--ghost", "Open map maker");
+    maker.addEventListener("click", handlers.onMapMaker);
+    const makerSection = element("section", "screen__section");
+    makerSection.append(element("h2", "screen__heading", "Map maker"), element("span", "screen__hint", "Build a map from the territory tiles and export it as JSON"), maker);
+
     this.error = element("p", "screen__error", defaults.error);
     this.buttons = [create, join];
     card.append(
@@ -53,6 +59,7 @@ export class Landing {
       identity,
       createSection,
       joinSection,
+      makerSection,
       this.error,
     );
     this.root.append(card);

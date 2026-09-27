@@ -1,4 +1,5 @@
 import type { Board, Clan, Coord, GameOptions, Grid, Plan, PlayerId, Tile } from "./game_types.ts";
+import type { PrebuiltMap } from "./game/default_map.ts";
 import type { BidRound, SetupStage } from "./game/setup/setup.ts";
 import type { TileGroupId } from "./game/setup/tile_groups.ts";
 import type { TurnEvent } from "./game/turn/events.ts";
@@ -8,6 +9,7 @@ export const MIN_PLAYERS = 2;
 export const MapMode = {
   Prebuilt: "prebuilt",
   Custom: "custom",
+  Imported: "imported",
 } as const;
 
 export type MapMode = (typeof MapMode)[keyof typeof MapMode];
@@ -15,6 +17,7 @@ export type MapMode = (typeof MapMode)[keyof typeof MapMode];
 export interface RoomOptions extends GameOptions {
   map: MapMode;
   clans: Clan[];
+  customMap: PrebuiltMap | null;
 }
 
 export interface Session {
@@ -101,7 +104,7 @@ export interface Credentials {
   as?: PlayerId;
 }
 
-export type OptionsRequest = Credentials & { options: Partial<Pick<RoomOptions, "clanPowers" | "map" | "bidding" | "clans">> };
+export type OptionsRequest = Credentials & { options: Partial<Pick<RoomOptions, "clanPowers" | "map" | "bidding" | "clans" | "customMap">> };
 
 export type PlaceTileRequest = Credentials & { tile: TileGroupId; anchor: Coord; rotation: number };
 

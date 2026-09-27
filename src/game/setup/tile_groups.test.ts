@@ -35,12 +35,11 @@ describe("Territory tiles", () => {
     return { board, cells, count };
   };
 
-  it("matches River Control (4 players): every tile appears once and Temples sit on Hills", () => {
+  it("matches River Control (4 players): every tile appears once and Temples are left to the players", () => {
     const { board, cells, count } = occurrences([0, 1, 2, 3]);
     expect(cells).toHaveLength(105);
     TILE_GROUPS.forEach((group) => expect(count(group.id), group.id).toBe(1));
-    const hills = cells.filter(({ col, row }) => board.tiles[row][col]!.type === TileType.Hills).length;
-    expect(board.provinces.flat().filter((province) => province?.temple)).toHaveLength(hills);
+    expect(board.provinces.flat().some((province) => province?.temple)).toBe(false);
     expect(board.provinces.flat().some((province) => province !== null && province.owner !== null)).toBe(false);
   });
 

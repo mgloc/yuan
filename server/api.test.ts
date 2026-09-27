@@ -51,6 +51,13 @@ async function firstView(session: Session, as?: number): Promise<{ status: numbe
   return { status: response.status, view: JSON.parse(text.slice(text.indexOf("data: ") + 6, text.indexOf("\n\n"))) };
 }
 
+async function launch(code: string, seats: { token: string; as?: number }[]) {
+  await call(`/api/games/${code}/start`, { token: seats[0].token });
+  for (const seat of seats) {
+    await call(`/api/games/${code}/agree`, { ...seat, agreed: true });
+  }
+}
+
 async function game(debug = false) {
   const host = (await call("/api/games", { name: "Host", debug })).body as Session;
   const guest = (await call(`/api/games/${host.code}/join`, { name: "Guest" })).body as Session;
@@ -129,7 +136,7 @@ describe("authorisation", () => {
   it("limits the debug host to placeholder seats", async () => {
     const { host, guest, code } = await game(true);
     await call(`/api/games/${code}/add-player`, { token: host.token });
-    await call(`/api/games/${code}/start`, { token: host.token });
+    await launch(code, [host, guest, { token: host.token, as: 2 }]);
     expect((await call(`/api/games/${code}/bid`, { token: host.token, as: 2, amount: 1 })).status).toBe(200);
     expect((await call(`/api/games/${code}/bid`, { token: host.token, as: 1, amount: 1 })).status).toBe(403);
     expect((await firstView(host, 1)).status).toBe(403);
@@ -142,10 +149,10 @@ describe("authorisation", () => {
 
 describe("game rules on the server", () => {
   it("rejects malformed and impossible plans", async () => {
-    const { host, code } = await game();
+    const { host, guest, code } = await game();
     const submit = (plan: unknown) => call(`/api/games/${code}/plan`, { token: host.token, plan });
     expect((await submit(emptyPlan())).status).toBe(409);
-    await call(`/api/games/${code}/start`, { token: host.token });
+    await launch(code, [host, guest]);
     const actions = (Development: unknown) => ({ Development, Fortification: null, Militarisation: null });
     expect((await submit(null)).status).toBe(400);
     expect((await submit({ target: { col: "0", row: 0 }, actions: actions(1) })).status).toBe(400);
@@ -172,7 +179,7 @@ describe("game rules on the server", () => {
 
   it("streams only the viewer's own Chão and plan", async () => {
     const { host, guest, code } = await game();
-    await call(`/api/games/${code}/start`, { token: host.token });
+    await launch(code, [host, guest]);
     const plan = { target: STARTING_CITIES[1], actions: { Development: 1, Fortification: null, Militarisation: null } };
     await call(`/api/games/${code}/plan`, { token: guest.token, plan });
     const { view } = await firstView(host);

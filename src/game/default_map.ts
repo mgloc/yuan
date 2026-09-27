@@ -39,6 +39,7 @@ export interface PrebuiltMap {
   capitals?: readonly Capital[];
   temples?: readonly Coord[];
   bidding?: boolean;
+  players?: number;
 }
 
 const DEFAULT_MAP: PrebuiltMap = {
@@ -98,21 +99,27 @@ export function prebuiltMap(players: number): PrebuiltMap {
 }
 
 export function prebuiltCapitals(players: number): readonly Capital[] | null {
-  const capitals = prebuiltMap(players).capitals;
-  return capitals !== undefined && capitals.length >= players ? capitals.slice(0, players) : null;
+  return mapCapitals(prebuiltMap(players), players);
 }
 
 export function prebuiltBoard(players: PlayerId[]): Board {
-  const map = prebuiltMap(players.length);
+  return mapBoard(prebuiltMap(players.length));
+}
+
+export function mapCapitals(map: PrebuiltMap, players: number): readonly Capital[] | null {
+  const capitals = map.capitals;
+  return capitals !== undefined && capitals.length >= players ? capitals.slice(0, players) : null;
+}
+
+export function mapBoard(map: PrebuiltMap): Board {
   let next = 0;
   const board = parseBoard([...map.layout], () => NAMES[next++ % NAMES.length]);
-  const temples = map.temples === undefined ? null : new Set(map.temples.map(coordKey));
+  const temples = new Set((map.temples ?? []).map(coordKey));
   for (const coord of allCoords(board)) {
     const province = provinceAt(board, coord);
-    if (province === null) {
-      continue;
+    if (province !== null) {
+      province.temple = temples.has(coordKey(coord)) && tileAt(board, coord)?.type === TileType.Hills;
     }
-    province.temple = temples === null ? tileAt(board, coord)?.type === TileType.Hills : temples.has(coordKey(coord));
   }
   return board;
 }

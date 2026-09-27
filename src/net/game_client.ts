@@ -39,7 +39,7 @@ export class GameClient {
     this.connect();
   }
 
-  setOptions(options: Partial<Pick<RoomOptions, "clanPowers" | "map" | "bidding" | "clans">>) {
+  setOptions(options: Partial<Pick<RoomOptions, "clanPowers" | "map" | "bidding" | "clans" | "customMap">>) {
     this.send(RoomAction.Options, { options });
   }
 

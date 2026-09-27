@@ -262,3 +262,15 @@ body {
 .lobby__chip:disabled {
   cursor: default;
 }
+
+.lobby__map-file {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding-left: 26px;
+}
+
+.lobby__map-file[hidden] {
+  display: none;
+}

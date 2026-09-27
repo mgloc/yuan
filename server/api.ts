@@ -4,6 +4,7 @@ import { MapMode, RoomAction, type Credentials, type ErrorResponse, type RoomOpt
 import { clientIp, IpLimits } from "./ip_limits.ts";
 import { LocalNotifier, type Notifier } from "./notifier.ts";
 import { isCoord, parsePlan, RoomError, type Room } from "./room.ts";
+import { parseCustomMap } from "../src/game/custom_map.ts";
 import { RoomService } from "./room_service.ts";
 import type { RoomStore } from "./store/store.ts";
 
@@ -270,7 +271,7 @@ function optionsOf(body: Record<string, unknown>): Partial<RoomOptions> {
   if (typeof options !== "object" || options === null) {
     throw new RoomError(400, "Invalid options");
   }
-  const { clanPowers, map, bidding, clans } = options as Record<string, unknown>;
+  const { clanPowers, map, bidding, clans, customMap } = options as Record<string, unknown>;
   const flag = (value: unknown) => value === undefined || typeof value === "boolean";
   const validClans =
     clans === undefined || (Array.isArray(clans) && clans.every(isClan) && new Set(clans).size === clans.length);
@@ -278,16 +279,21 @@ function optionsOf(body: Record<string, unknown>): Partial<RoomOptions> {
     flag(clanPowers) &&
     flag(bidding) &&
     validClans &&
-    (map === undefined || map === MapMode.Prebuilt || map === MapMode.Custom) &&
-    [clanPowers, map, bidding, clans].some((value) => value !== undefined);
+    (map === undefined || map === MapMode.Prebuilt || map === MapMode.Custom || map === MapMode.Imported) &&
+    [clanPowers, map, bidding, clans, customMap].some((value) => value !== undefined);
   if (!valid) {
     throw new RoomError(400, "Invalid options");
+  }
+  const parsedMap = customMap === undefined || customMap === null ? customMap : parseCustomMap(customMap);
+  if (typeof parsedMap === "string") {
+    throw new RoomError(400, parsedMap);
   }
   return {
     clanPowers: clanPowers as boolean | undefined,
     map: map as RoomOptions["map"] | undefined,
     bidding: bidding as boolean | undefined,
     clans: clans as Clan[] | undefined,
+    customMap: parsedMap,
   };
 }
 
