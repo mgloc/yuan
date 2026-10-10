@@ -32,7 +32,7 @@ The server listens on `PORT` (default `8787`) and stores rooms in `YUAN_DB` (def
 docker compose up --build
 ```
 
-`deploy/` contains an example setup with Caddy as a TLS reverse proxy.
+`deploy/` contains the server setup: a single Caddy instance terminates TLS for every app on the host (see `deploy/Caddyfile`) and joins the shared `proxy` network.
 
 ## Tests
 

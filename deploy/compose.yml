@@ -6,20 +6,28 @@ services:
       YUAN_TRUST_PROXY: "1"
     volumes:
       - yuan-data:/data
+    networks:
+      - proxy
 
   caddy:
     image: caddy:2
     restart: unless-stopped
-    command: caddy reverse-proxy --from glock.ovh --to yuan:8787
     ports:
       - "80:80"
       - "443:443"
       - "443:443/udp"
     volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
+    networks:
+      - proxy
     depends_on:
       - yuan
+
+networks:
+  proxy:
+    external: true
 
 volumes:
   yuan-data:

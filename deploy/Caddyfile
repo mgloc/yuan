@@ -1,0 +1,7 @@
+yuan.glock.ovh {
+	reverse_proxy yuan:8787
+}
+
+solfege.glock.ovh {
+	reverse_proxy solfege:80
+}
