@@ -32,7 +32,7 @@ The server listens on `PORT` (default `8787`) and stores rooms in `YUAN_DB` (def
 docker compose up --build
 ```
 
-`deploy/` contains the server setup: a single Caddy instance terminates TLS for every app on the host (see `deploy/Caddyfile`) and joins the shared `proxy` network.
+`scripts/deploy.sh` builds the image on GitHub Actions and runs `compose.vps.yml` on the server. The shared Caddy that serves `yuan.glock.ovh`, the host setup and the backups live in the `vps` repository.
 
 ## Tests
 

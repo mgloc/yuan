@@ -1,0 +1,21 @@
+# Production on the glock.ovh VPS. No published port: the shared Caddy (vps
+# repository) terminates TLS and reaches this service by name on the external
+# "proxy" network. See scripts/deploy.sh.
+services:
+  yuan:
+    # Built by .github/workflows/image.yml.
+    image: ghcr.io/mgloc/yuan:${TAG:-latest}
+    restart: unless-stopped
+    environment:
+      YUAN_TRUST_PROXY: "1"
+    volumes:
+      - yuan-data:/data
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
+
+volumes:
+  yuan-data:
